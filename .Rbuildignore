@@ -1,3 +1,11 @@
-^spinR\.Rproj$
+^prosail\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
+^data-raw$
+^README\.Rmd$
+^\.gitlab-ci\.yml$
+^docs
+^pkgdown
+^doc$
+^Meta$
+^ci
