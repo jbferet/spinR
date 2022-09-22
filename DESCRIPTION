@@ -7,7 +7,7 @@ Authors@R:
     					    email = "jb.feret@teledetection.fr", 
     					    role = c("aut", "cre", "cph"),
     					    comment = c(ORCID = "0000-0002-0151-1334"))
-Description: The package spinR computes spectral indices from raster data or reflectance data provided as vector/raster. It includes a set of predefined spectral indices, including the most common ones, as well as a spectral index generator, based on simple expressions defined by users.
+Description: The package spinR computes spectral indices from raster data or reflectance data (numeric: vector or matrix). It includes a set of predefined spectral indices, including the most common ones, as well as a spectral index generator, based on simple expressions defined by users.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
