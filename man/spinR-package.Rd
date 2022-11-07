@@ -6,7 +6,7 @@
 \alias{spinR-package}
 \title{spinR: Spectral Indices calculator with R}
 \description{
-The package spinR computes spectral indices from raster data or reflectance data provided as vector/raster. It includes a set of predefined spectral indices, including the most common ones, as well as a spectral index generator, based on simple expressions defined by users.
+The package spinR computes spectral indices from raster data or reflectance data (numeric: vector or matrix). It includes a set of predefined spectral indices, including the most common ones, as well as a spectral index generator, based on simple expressions defined by users.
 }
 \author{
 \strong{Maintainer}: Jean-Baptiste Feret \email{jb.feret@teledetection.fr} (\href{https://orcid.org/0000-0002-0151-1334}{ORCID}) [copyright holder]
