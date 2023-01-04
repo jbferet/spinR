@@ -45,71 +45,6 @@ AUC <- function(Refl, SensorBands, AUCminmax, ReflFactor=1){
   return(AUCval)
 }
 
-#' This function extracts boundaries to be used to compute continuum from reflectance data
-#'
-#' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
-#' @param SensorBands numeric. vector containing central wavelength for each spectral band in the image
-#' @param CRbands list. list of spectral bands (central wavelength) including CRmin and CRmax
-#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
-#'
-#' @return CRminmax list. list of rasters corresponding to minimum and maximum wavelengths
-#' @export
-CRbound <- function(Refl, SensorBands, CRbands, ReflFactor=1){
-
-  # get closest spectral bands from CR1 and CR2
-  Bands <- get_closest_bands(SensorBands,list(CRbands[['CRmin']],CRbands[['CRmax']]))
-  WL <- SensorBands[Bands]
-  # get equation for line going from CR1 to CR2
-  CRminmax <- readRasterBands(Refl = Refl, Bands = Bands, ReflFactor=ReflFactor)
-  names(CRminmax) <- paste('WL_',as.character(WL),sep = '')
-  return(CRminmax)
-}
-
-#' This function extracts boundaries to be used to compute continuum from reflectance data
-#'
-#' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
-#' @param SensorBands numeric. vector containing central wavelength for each spectral band in the image
-#' @param CRbands list. list of spectral bands (central wavelength) including CRmin and CRmax
-#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
-#'
-#' @return outlier_IQR numeric. band numbers of original sensor corresponding to S2
-#' @importFrom progress progress_bar
-#' @export
-CR_WL <- function(Refl, SensorBands, CRbands, ReflFactor=1){
-
-  # Make sure CRmin and CRmax are correctly defined
-  if (is.na(match('CRmin',names(CRbands))) | is.na(match('CRmax',names(CRbands)))){
-    stop('Please define CRmin and CRmax (CRmin<CRmax) as spectral bands in CRbands')
-  }
-  if (CRbands[['CRmax']] < CRbands[['CRmin']]){
-    stop('Please define CRmin < CRmax in CRbands')
-  }
-  # extract CRmin and CRmax
-  CRminmax <- CRbound(Refl, SensorBands, CRbands, ReflFactor=ReflFactor)
-  # extract other bands and compute CR
-  CRmin <- SensorBands[get_closest_bands(SensorBands,CRbands[['CRmin']])]
-  CRmax <- SensorBands[get_closest_bands(SensorBands,CRbands[['CRmax']])]
-  CRbands[['CRmin']] <- NULL
-  CRbands[['CRmax']] <- NULL
-  CR <- list()
-  # initiate progress bar
-  pgbarlength <- length(CRbands)
-  pb <- progress_bar$new(
-    format = "Computing continuum removal [:bar] :percent in :elapsedfull , estimated time remaining :eta",
-    total = pgbarlength, clear = FALSE, width= 100)
-  # computation for each band
-  for (band in CRbands){
-    pb$tick()
-    bandrank <- get_closest_bands(SensorBands,band)
-    raster2CR <- readRasterBands(Refl = Refl, Bands = bandrank, ReflFactor=ReflFactor)
-    CR[[as.character(band)]] <- ComputeCR(WLmin = CRmin, WLmax = CRmax,
-                                          WLtarget = band, boundaries=CRminmax,
-                                          target=raster2CR)
-    # CR[[as.character(band)]] <- target/(boundaries[[1]]+(WLtarget-WLmin)*(boundaries[[2]]-boundaries[[1]])/(WLmax-WLmin))
-  }
-  return(CR)
-}
-
 #' This function computes continuum removal value for a spectral band of interest,
 #' based on lower and upper wavelengths corresponding to boundaries of the continuum
 #'
@@ -121,7 +56,7 @@ CR_WL <- function(Refl, SensorBands, CRbands, ReflFactor=1){
 #'
 #' @return CR list. raster object corresponding to continuum removed value
 #' @export
-ComputeCR <- function(WLmin, WLmax, WLtarget, boundaries, target){
+Compute_CR <- function(WLmin, WLmax, WLtarget, boundaries, target){
 
   CR <- target/(boundaries[[1]]+(WLtarget-WLmin)*(boundaries[[2]]-boundaries[[1]])/(WLmax-WLmin))
   return(CR)
@@ -129,47 +64,61 @@ ComputeCR <- function(WLmin, WLmax, WLtarget, boundaries, target){
 
 #' this function produces a spectral index from an expression defining a spectral index
 #'
+#' @param listBands list. list of spectral bands defined in the 'ExpressIndex' variable
 #' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
 #' @param SensorBands numeric. wavelength in nanometers of the spectral bands of Refl.
 #' @param ExpressIndex  character. expression corresponding to the spectral index to compute
-#' @param listBands list. list of spectral bands defined in the 'ExpressIndex' variable
 #' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
 #' @param NameIndex character. name for the index to be computed, provided in the raster layer
+#' @param p list. in case progress bar with parallel computing
 #'
 #' @return numeric. band numbers of original sensor corresponding to S2
 #' @export
-ComputeSpectralIndices_fromExpression <- function(Refl, SensorBands, ExpressIndex , listBands, ReflFactor=1,NameIndex = NULL){
+Compute_SI_fromExp <- function(listBands, Refl, SensorBands, ExpressIndex , ReflFactor=1,
+                                                  NameIndex = NULL, p = NULL){
 
   # define which bands to be used in the spectral index
   Bands <- get_closest_bands(SensorBands,listBands)
 
-  ClassRaster <- class(Refl)
-  if (ClassRaster=='RasterBrick' | ClassRaster=='RasterStack' | ClassRaster=='stars'){
-    # if !ReflFactor == 1 then apply a reflectance factor
-    if (ClassRaster=='stars'){
+  # manage depending on data type
+  ClassInputData <- class(Refl)[1]
+  if (ClassInputData=='RasterBrick' | ClassInputData=='RasterStack' | ClassInputData=='stars'){
+    if (ClassInputData=='stars'){
       Refl <- Refl[Bands]
     } else {
       Refl <- raster::subset(Refl, Bands)
     }
-    if (!ReflFactor==1){
-      Refl <- Refl/ReflFactor
+  } else if(ClassInputData=='matrix'){
+    if (dim(Refl)[2] == length(SensorBands)){
+      Refl <- Refl[,Bands]
+    } else if (dim(Refl)[1] == length(SensorBands)){
+      Refl <- t(Refl[Bands,])
+    } else {
+      stop('The dimensions of the reflectance matrix do not match with those of SensorBands')
     }
+    # convert matrix into list
+    Refl <- lapply(seq_len(ncol(Refl)), function(i) Refl[,i])
   } else if(is.list(Refl)){
     Refl <- raster::stack(Refl[Bands]) # checks that all rasters have same crs/extent
-    if (!ReflFactor==1){
-      Refl <- Refl/ReflFactor
-    }
   } else {
-    stop('Refl is expected to be a RasterStack, RasterBrick, Stars object or a list of rasters')
+    stop('Refl is expected to be a RasterStack, RasterBrick, Stars object, list of rasters or matrix')
   }
+  # apply reflectance factor
+  if (!ReflFactor==1){
+    Refl <- Refl/ReflFactor
+  }
+  # add band names
   names(Refl) <- gsub(pattern = 'B',replacement = 'Band',x = names(Bands))
 
+  # get number of bands involved in the computation of the spectral index
   nbBands <- unique(as.numeric(gsub(pattern = 'B',
                                     replacement = '',
                                     x =  unlist(regmatches(ExpressIndex,
                                                            gregexpr("B[[:digit:]]+",
                                                                     ExpressIndex))))))
   sortBand <- sort(nbBands,index.return=T,decreasing = T)
+
+  # produce an expression corresponding to the computation of the spectral index
   matches <- unique(unlist(regmatches(ExpressIndex, gregexpr("B[[:digit:]]+", ExpressIndex))))[sortBand$ix]
   replaces <- paste("Refl[['Band",gsub(pattern = 'B',replacement = '',x = matches),"']]",sep = '')
   ExpressIndex_Final <- ExpressIndex
@@ -177,10 +126,66 @@ ComputeSpectralIndices_fromExpression <- function(Refl, SensorBands, ExpressInde
     ExpressIndex_Final <- gsub(pattern = matches[bb], replacement = replaces[bb], x = ExpressIndex_Final)
   }
   SI <- eval(parse(text = ExpressIndex_Final))
-  if (!is.null(NameIndex)){
+  if (! ClassInputData=='matrix' && !is.null(NameIndex)){
     names(SI) <- NameIndex
+  } else if (ClassInputData=='matrix' && !is.null(NameIndex)){
+    SI <- data.frame(SI)
+    colnames(SI) <- NameIndex
   }
+  if (!is.null(p)){p()}
   return(SI)
+}
+
+#' This function computes the correlation between a set of vegetation properties
+#' and a spectral index
+#'
+#' @param listBands numeric. bands used in the expression
+#' @param Refl numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param ExpressIndex character. expression corresponding to the spectral index to be explored ()
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param ReflFactor numeric. multplying factor for reflectance
+#' @param NameIndex character. name of spectral index
+#'
+#' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @importFrom Rfast correls
+#' @export
+
+Compute_SI_fromExp_Corr <- function(listBands, Refl, SensorBands, ExpressIndex, BPvars,
+                                    ReflFactor = 1, NameIndex = 'SI'){
+  SIopt <- Compute_SI_fromExp(listBands = listBands,
+                              Refl = Refl,
+                              SensorBands = SensorBands,
+                              ExpressIndex = ExpressIndex,
+                              ReflFactor = ReflFactor,
+                              NameIndex = NameIndex)
+  corr_BP_SI <- Rfast::correls(x = BPvars,y = SIopt$SI,type = 'pearson')[,1]
+  return(corr_BP_SI)
+}
+
+#' This function computes the correlation between a set of vegetation properties
+#' and a continuum removed spectral index
+#'
+#' @param listBands numeric. bands used in the expression
+#' @param Refl numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#'
+#' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @importFrom Rfast correls
+#' @export
+
+Compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
+
+  if (dim(Refl)[1]==length(SensorBands)){
+    Refl <- t(Refl)
+  }
+  bands <- get_closest_bands(SensorBands,listBands)
+  SIopt <- Compute_CR(WLmin = as.numeric(listBands[1]), WLmax = as.numeric(listBands[3]),
+                      WLtarget = as.numeric(listBands[2]),
+                      boundaries = list(Refl[,bands[1]], Refl[,bands[3]]), target = Refl[,bands[2]])
+  corr_BP_SI <- Rfast::correls(x = BPvars,y = SIopt,type = 'pearson')[,1]
+  return(corr_BP_SI)
 }
 
 #' this function aims at computing spectral indices from Sensor reflectance data in raster object
@@ -196,6 +201,7 @@ ComputeSpectralIndices_fromExpression <- function(Refl, SensorBands, ExpressInde
 #' @param StackOut logical. If TRUE returns a stack, otherwise a list of rasters.
 #' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
 #' @param Offset numeric. offset (when Refl between 0 and 1) to be applied on reflectance. Useful to avoid zero values
+#' @param S2Bands numeric. wavelength of the spectral bands corresponding to S2 (default = S2A)
 #'
 #' @return list. includes
 #' - SpectralIndices: List of spectral indices computed from the reflectance initially provided
@@ -204,15 +210,15 @@ ComputeSpectralIndices_fromExpression <- function(Refl, SensorBands, ExpressInde
 #' @importFrom raster stack brick
 #' @export
 
-ComputeSpectralIndices_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
-                                          StackOut = T, ReflFactor = 1, Offset = 0){
-
-  S2Bands <- c('B2'=496.6, 'B3'=560.0, 'B4'=664.5, 'B5'=703.9, 'B6'=740.2,
-               'B7' = 782.5, 'B8' = 835.1, 'B8A' = 864.8, 'B11' = 1613.7, 'B12' = 2202.4)
-
+Compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
+                                          StackOut = T, ReflFactor = 1, Offset = 0,
+                                          S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
+                                                               'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
+                                                               'B8' = 832.8, 'B8A' = 864.7,
+                                                               'B11' = 1613.7, 'B12' = 2202.4)){
   SpectralIndices <- list()
   Sen2S2 <- get_closest_bands(SensorBands,S2Bands)
-  ClassRaster <- class(Refl)
+  ClassRaster <- class(Refl)[1]
   if (ClassRaster=='RasterBrick' | ClassRaster=='RasterStack' | ClassRaster=='stars'){
     # if !ReflFactor == 1 then apply a reflectance factor
     if (ClassRaster=='stars'){
@@ -439,18 +445,20 @@ ComputeSpectralIndices_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
 #'
 #' @param Refl numeric. Reflectance dataset defined in matrix
 #' @param Sel_Indices list. list of spectral indices to be computed
-#' @param SensorBands numeric. wavelength of the spectral bands corresponding to the spectral index
+#' @param SensorBands numeric. wavelength of the spectral bands corresponding to reflectance
+#' @param S2Bands numeric. wavelength of the spectral bands corresponding to S2 (default = S2A)
 #'
 #' @return list. includes
 #' - SpectralIndices: List of spectral indices computed from the reflectance initially provided
 #' - listIndices: list of spectral indices computable with the function
 #' @export
 
-ComputeSpectralIndices_HS <- function(Refl,SensorBands,Sel_Indices='ALL'){
-
+Compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
+                                     S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
+                                                          'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
+                                                          'B8' = 832.8, 'B8A' = 864.7,
+                                                          'B11' = 1613.7, 'B12' = 2202.4)){
   SpectralIndices <- list()
-  S2Bands <- data.frame('B2'=496.6, 'B3'=560.0, 'B4'=664.5, 'B5'=703.9, 'B6'=740.2,
-                        'B7' = 782.5, 'B8' = 835.1, 'B8A' = 864.8, 'B11' = 1613.7, 'B12' = 2202.4)
   Sen2S2 <- get_closest_bands(SensorBands,S2Bands)
   IndexAll <- list()
   # set zero vaues to >0 in order to avoid problems
@@ -635,6 +643,70 @@ ComputeSpectralIndices_HS <- function(Refl,SensorBands,Sel_Indices='ALL'){
   return(res)
 }
 
+#' This function extracts boundaries to be used to compute continuum from reflectance data
+#'
+#' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band in the image
+#' @param CRbands list. list of spectral bands (central wavelength) including CRmin and CRmax
+#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
+#'
+#' @return CRminmax list. list of rasters corresponding to minimum and maximum wavelengths
+#' @export
+CR_bound <- function(Refl, SensorBands, CRbands, ReflFactor=1){
+
+  # get closest spectral bands from CR1 and CR2
+  Bands <- get_closest_bands(SensorBands,list(CRbands[['CRmin']],CRbands[['CRmax']]))
+  WL <- SensorBands[Bands]
+  # get equation for line going from CR1 to CR2
+  CRminmax <- readRasterBands(Refl = Refl, Bands = Bands, ReflFactor=ReflFactor)
+  names(CRminmax) <- paste('WL_',as.character(WL),sep = '')
+  return(CRminmax)
+}
+
+#' This function extracts boundaries to be used to compute continuum from reflectance data
+#'
+#' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band in the image
+#' @param CRbands list. list of spectral bands (central wavelength) including CRmin and CRmax
+#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
+#'
+#' @return outlier_IQR numeric. band numbers of original sensor corresponding to S2
+#' @importFrom progress progress_bar
+#' @export
+CR_WL <- function(Refl, SensorBands, CRbands, ReflFactor=1){
+
+  # Make sure CRmin and CRmax are correctly defined
+  if (is.na(match('CRmin',names(CRbands))) | is.na(match('CRmax',names(CRbands)))){
+    stop('Please define CRmin and CRmax (CRmin<CRmax) as spectral bands in CRbands')
+  }
+  if (CRbands[['CRmax']] < CRbands[['CRmin']]){
+    stop('Please define CRmin < CRmax in CRbands')
+  }
+  # extract CRmin and CRmax
+  CRminmax <- CR_bound(Refl, SensorBands, CRbands, ReflFactor=ReflFactor)
+  # extract other bands and compute CR
+  CRmin <- SensorBands[get_closest_bands(SensorBands,CRbands[['CRmin']])]
+  CRmax <- SensorBands[get_closest_bands(SensorBands,CRbands[['CRmax']])]
+  CRbands[['CRmin']] <- NULL
+  CRbands[['CRmax']] <- NULL
+  CR <- list()
+  # initiate progress bar
+  pgbarlength <- length(CRbands)
+  pb <- progress_bar$new(
+    format = "Computing continuum removal [:bar] :percent in :elapsedfull , estimated time remaining :eta",
+    total = pgbarlength, clear = FALSE, width= 100)
+  # computation for each band
+  for (band in CRbands){
+    pb$tick()
+    bandrank <- get_closest_bands(SensorBands,band)
+    raster2CR <- readRasterBands(Refl = Refl, Bands = bandrank, ReflFactor=ReflFactor)
+    CR[[as.character(band)]] <- Compute_CR(WLmin = CRmin, WLmax = CRmax,
+                                           WLtarget = band, boundaries=CRminmax,
+                                           target=raster2CR)
+  }
+  return(CR)
+}
+
 #' this function identifies the bands of a given sensor with closest match to its spectral characteristics
 #'
 #' @param SensorBands numeric. wavelength in nanometer of the sensor of interest
@@ -660,6 +732,145 @@ IQR_outliers <- function(DistVal,weightIRQ = 1.5){
   range_IQR <- c(quantile(DistVal, 0.25,na.rm=TRUE),quantile(DistVal, 0.75,na.rm=TRUE))
   outlier_IQR <- c(range_IQR[1]-weightIRQ*iqr,range_IQR[2]+weightIRQ*iqr)
   return(outlier_IQR)
+}
+
+
+#' This function computes the correlation between a set of vegetation properties
+#' and all combinations of spectral bands corresponding to a given type of spectral index
+#'
+#' @param ReflMat numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param Spectral_Bands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param ExpressIndex character. expression corresponding to the spectral index to be explored ()
+#' @param repeats.allowed boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time
+#' @param nbCPU numeric. number of CPU for multithreading
+#'
+#' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @importFrom gtools combinations
+#' @importFrom progress progress_bar
+#' @importFrom Rfast correls
+#' @importFrom pbapply pblapply
+#' @export
+
+Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.allowed = FALSE, nbCPU = 1){
+
+  # number of bands in reflectance data
+  nbBands <- length(Spectral_Bands)
+  # number of bands in spectral index
+  nbBandsSI <- unique(as.numeric(gsub(pattern = 'B',
+                                      replacement = '',
+                                      x =  unlist(regmatches(ExpressIndex,
+                                                             gregexpr("B[[:digit:]]+",ExpressIndex))))))
+  sortBand <- sort(nbBandsSI,index.return=T,decreasing = T)
+  matches <- unique(unlist(regmatches(ExpressIndex, gregexpr("B[[:digit:]]+", ExpressIndex))))[sortBand$ix]
+  BandCombs <- gtools::combinations(n = nbBands,r = length(matches),repeats.allowed = F)
+
+  Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
+  colnames(Bands) <- matches
+  Bands <- data.frame(Bands)
+
+  if (nbCPU==1){
+    SIopt <- sub_SI_Corr(Bands = Bands,
+                         Refl = ReflMat,
+                         SensorBands = Spectral_Bands,
+                         ExpressIndex = ExpressIndex,
+                         BPvars = BPvars,
+                         ReflFactor = 1,
+                         p = NULL)
+
+  } else {
+    # multithread
+    Bands2 <- snow::splitRows(Bands, nbCPU*10)
+    plan(multisession, workers = nbCPU)
+    handlers(global = TRUE)
+    handlers("cli")
+    with_progress({
+      p <- progressr::progressor(steps = nbCPU*10)
+      SIopt <- future_lapply(Bands2,
+                             FUN = sub_SI_Corr,
+                             Refl = ReflMat,
+                             SensorBands = Spectral_Bands,
+                             ExpressIndex = ExpressIndex,
+                             BPvars = BPvars,
+                             ReflFactor = 1,
+                             p = p,
+                             future.packages = c("Rfast","pbapply"))
+    })
+    plan(sequential)
+    SIopt <- do.call(rbind,SIopt)
+  }
+
+  # Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
+  # SIopt <- pblapply(Bands_SI,
+  #                   FUN = Compute_SI_fromExp_Corr,
+  #                   Refl = ReflMat,
+  #                   SensorBands = Spectral_Bands,
+  #                   ExpressIndex = ExpressIndex,
+  #                   BPvars = BPvars,
+  #                   ReflFactor = 1, NameIndex = 'SI')
+  # SIopt <- do.call(rbind,SIopt)
+  res <- list('BandCombinations' = Bands, 'Correlation' = SIopt)
+  return(res)
+}
+
+#' This function computes the correlation between a set of vegetation properties
+#' and all combinations of spectral bands corresponding to a given type of spectral index
+#'
+#' @param ReflMat numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param Spectral_Bands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param repeats.allowed boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time
+#' @param nbCPU numeric. number of CPU for multithreading
+#'
+#' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @import cli
+#' @importFrom gtools combinations
+#' @importFrom progress progress_bar
+#' @importFrom progressr progressor with_progress handlers
+#' @importFrom Rfast correls
+#' @importFrom pbapply pblapply
+#' @importFrom snow splitRows
+#' @importFrom future plan multiprocess multisession sequential
+#' @importFrom future.apply future_lapply
+#' @export
+
+Optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, repeats.allowed = FALSE, nbCPU = 1){
+
+  # number of bands in reflectance data
+  nbBands <- length(Spectral_Bands)
+  # number of bands in spectral index
+  nbBandsSI <- 3
+  matches <- c('B1', 'B2', 'B3')
+  BandCombs <- gtools::combinations(n = nbBands,r = length(matches),repeats.allowed = F)
+  Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
+  colnames(Bands) <- matches
+  Bands <- data.frame(Bands)
+
+  if (nbCPU==1){
+    SIopt <- sub_SI_CR_Corr(Bands = Bands,
+                            Refl = ReflMat,
+                            SensorBands = Spectral_Bands,
+                            BPvars = BPvars)
+  } else {
+    Bands2 <- snow::splitRows(Bands, nbCPU*10)
+    # multithread
+    plan(multisession, workers = nbCPU)
+    handlers(global = TRUE)
+    handlers("cli")
+    with_progress({
+      p <- progressr::progressor(steps = nbCPU*10)
+      SIopt <- future_lapply(Bands2,
+                              FUN = sub_SI_CR_Corr,
+                              Refl = ReflMat,
+                              SensorBands = Spectral_Bands,
+                              BPvars = BPvars, p,
+                              future.packages = c("Rfast","pbapply"))
+    })
+    plan(sequential)
+    SIopt <- do.call(rbind,SIopt)
+  }
+  res <- list('BandCombinations' = Bands, 'Correlation' = SIopt)
+  return(res)
 }
 
 #' This function selects bands from a raster or stars object
@@ -694,6 +905,61 @@ readRasterBands <- function(Refl, Bands, ReflFactor=1){
     stop('Refl is expected to be a RasterStack, RasterBrick, Stars object or a list of rasters')
   }
   return(Robj)
+}
+
+#' This function computes the correlation between a set of vegetation properties
+#' and a set of combinations of spectral bands corresponding to a given type of spectral index
+#'
+#' @param Bands numeric.
+#' @param Refl numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param ExpressIndex  character. expression corresponding to the spectral index to compute
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param p function.
+#'
+#' @return SIopt list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @importFrom pbapply pblapply
+#' @export
+
+sub_SI_Corr <- function(Bands, Refl, SensorBands, ExpressIndex, BPvars, ReflFactor = 1, p=NULL){
+
+  Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
+  SIopt <- pblapply(Bands_SI,
+                    FUN = Compute_SI_fromExp_Corr,
+                    Refl = Refl,
+                    SensorBands = SensorBands,
+                    ExpressIndex = ExpressIndex,
+                    BPvars = BPvars,
+                    ReflFactor = ReflFactor, NameIndex = 'SI')
+
+  SIopt <- do.call(rbind,SIopt)
+  if (!is.null(p)){p()}
+  return(SIopt)
+}
+
+#' This function computes the correlation between a set of vegetation properties
+#' and a set of combinations of spectral bands corresponding to a given type of spectral index
+#'
+#' @param Bands numeric.
+#' @param Refl numeric. reflectance matrix with ncol = nbands and nrows = nsamples
+#' @param SensorBands numeric. vector containing central wavelength for each spectral band of ReflMat
+#' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param p function.
+#'
+#' @return SIopt list. includes band Combinations and corresponding correlation between biophysical variables and SI
+#' @importFrom pbapply pblapply
+#' @export
+
+sub_SI_CR_Corr <- function(Bands, Refl, SensorBands, BPvars, p=NULL){
+  Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
+  SIopt <- pblapply(Bands_SI,
+                    FUN = Compute_SI_CR_Corr,
+                    Refl = Refl,
+                    SensorBands = SensorBands,
+                    BPvars = BPvars)
+  SIopt <- do.call(rbind,SIopt)
+  if (!is.null(p)){p()}
+  return(SIopt)
 }
 
 # compute_lasrc_indices <- function(lasrc_dir){
