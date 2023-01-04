@@ -220,31 +220,25 @@ Compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
   Sen2S2 <- get_closest_bands(SensorBands,S2Bands)
   ClassRaster <- class(Refl)[1]
   if (ClassRaster=='RasterBrick' | ClassRaster=='RasterStack' | ClassRaster=='stars'){
-    # if !ReflFactor == 1 then apply a reflectance factor
     if (ClassRaster=='stars'){
       Refl <- Refl[Sen2S2]
     } else {
       Refl <- raster::subset(Refl, Sen2S2)
     }
-    if (!ReflFactor==1){
-      Refl <- Refl/ReflFactor
-    }
-    if (!Offset==0){
-      Refl <- Refl+Offset
-    }
   } else if(is.list(Refl)){
     Refl <- raster::stack(Refl[Sen2S2]) # checks that all rasters have same crs/extent
-    if (!ReflFactor==1){
-      Refl <- Refl/ReflFactor
-    }
-    if (!Offset==0){
-      Refl <- Refl+Offset
-    }
   } else {
     stop('Refl is expected to be a RasterStack, RasterBrick, Stars object or a list of rasters')
   }
+  # if !ReflFactor == 1 then apply a reflectance factor
+  if (!ReflFactor==1){
+    Refl <- Refl/ReflFactor
+  }
+  # if offset
+  if (!Offset==0){
+    Refl <- Refl+Offset
+  }
   names(Refl) <- names(Sen2S2)
-
   IndexAll <- list()
   # # set zero vaues to >0 in order to avoid problems
   # SelZero <- which(Refl==0)
@@ -463,7 +457,7 @@ Compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
   IndexAll <- list()
   # set zero vaues to >0 in order to avoid problems
   SelZero <- which(Refl==0)
-  Refl[SelZero] <- 0.005
+  Refl[SelZero] <- 0.002
   if (dim(Refl)[1]==length(SensorBands)){
     Refl <- t(Refl)
   }
@@ -799,16 +793,6 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.all
     plan(sequential)
     SIopt <- do.call(rbind,SIopt)
   }
-
-  # Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
-  # SIopt <- pblapply(Bands_SI,
-  #                   FUN = Compute_SI_fromExp_Corr,
-  #                   Refl = ReflMat,
-  #                   SensorBands = Spectral_Bands,
-  #                   ExpressIndex = ExpressIndex,
-  #                   BPvars = BPvars,
-  #                   ReflFactor = 1, NameIndex = 'SI')
-  # SIopt <- do.call(rbind,SIopt)
   res <- list('BandCombinations' = Bands, 'Correlation' = SIopt)
   return(res)
 }
@@ -887,22 +871,19 @@ readRasterBands <- function(Refl, Bands, ReflFactor=1){
   # get equation for line going from CR1 to CR2
   ClassRaster <- class(Refl)
   if (ClassRaster=='RasterBrick' | ClassRaster=='RasterStack' | ClassRaster=='stars'){
-    # if !ReflFactor == 1 then apply a reflectance factor
     if (ClassRaster=='stars'){
       Robj <- Refl[Bands]
     } else {
       Robj <- raster::subset(Refl, Bands)
     }
-    if (!ReflFactor==1){
-      Robj <- Robj/ReflFactor
-    }
   } else if(is.list(Refl)){
     Robj <- raster::stack(Refl[Bands]) # checks that all rasters have same crs/extent
-    if (!ReflFactor==1){
-      Robj <- Robj/ReflFactor
-    }
   } else {
     stop('Refl is expected to be a RasterStack, RasterBrick, Stars object or a list of rasters')
+  }
+  # if !ReflFactor == 1 then apply a reflectance factor
+  if (!ReflFactor==1){
+    Robj <- Robj/ReflFactor
   }
   return(Robj)
 }
@@ -915,6 +896,7 @@ readRasterBands <- function(Refl, Bands, ReflFactor=1){
 #' @param SensorBands numeric. vector containing central wavelength for each spectral band of ReflMat
 #' @param ExpressIndex  character. expression corresponding to the spectral index to compute
 #' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
+#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
 #' @param p function.
 #'
 #' @return SIopt list. includes band Combinations and corresponding correlation between biophysical variables and SI

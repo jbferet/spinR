@@ -10,7 +10,8 @@ Optimal_SI(
   Spectral_Bands,
   BPvars,
   ExpressIndex,
-  repeats.allowed = FALSE
+  repeats.allowed = FALSE,
+  nbCPU = 1
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ Optimal_SI(
 \item{ExpressIndex}{character. expression corresponding to the spectral index to be explored ()}
 
 \item{repeats.allowed}{boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time}
+
+\item{nbCPU}{numeric. number of CPU for multithreading}
 }
 \value{
 list. includes band Combinations and corresponding correlation between biophysical variables and SI
