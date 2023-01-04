@@ -765,7 +765,6 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutation
   Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
   colnames(Bands) <- matches
   Bands <- data.frame(Bands)
-
   if (nbCPU==1){
     SIopt <- sub_SI_Corr(Bands = Bands,
                          Refl = ReflMat,
@@ -774,15 +773,19 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutation
                          BPvars = BPvars,
                          ReflFactor = 1,
                          p = NULL)
-
   } else {
     # multithread
-    Bands2 <- snow::splitRows(Bands, nbCPU*10)
+    if ((length(Bands[[1]])/20000)>(nbCPU*10)){
+      nbmultithread <- round((length(Bands[[1]])/20000))
+    } else {
+      nbmultithread <- nbCPU*10
+    }
+    Bands2 <- snow::splitRows(Bands, nbmultithread)
     plan(multisession, workers = nbCPU)
     handlers(global = TRUE)
     handlers("cli")
     with_progress({
-      p <- progressr::progressor(steps = nbCPU*10)
+      p <- progressr::progressor(steps = nbmultithread)
       SIopt <- future_lapply(Bands2,
                              FUN = sub_SI_Corr,
                              Refl = ReflMat,
@@ -831,20 +834,20 @@ Optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
   Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
   colnames(Bands) <- matches
   Bands <- data.frame(Bands)
-
+  nbcb <-
   if (nbCPU==1){
     SIopt <- sub_SI_CR_Corr(Bands = Bands,
                             Refl = ReflMat,
                             SensorBands = Spectral_Bands,
                             BPvars = BPvars)
   } else {
-    Bands2 <- snow::splitRows(Bands, nbCPU*10)
+    Bands2 <- snow::splitRows(Bands, nbCPU*50)
     # multithread
     plan(multisession, workers = nbCPU)
     handlers(global = TRUE)
     handlers("cli")
     with_progress({
-      p <- progressr::progressor(steps = nbCPU*10)
+      p <- progressr::progressor(steps = nbCPU*50)
       SIopt <- future_lapply(Bands2,
                               FUN = sub_SI_CR_Corr,
                               Refl = ReflMat,
