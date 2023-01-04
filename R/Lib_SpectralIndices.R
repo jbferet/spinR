@@ -736,17 +736,17 @@ IQR_outliers <- function(DistVal,weightIRQ = 1.5){
 #' @param Spectral_Bands numeric. vector containing central wavelength for each spectral band of ReflMat
 #' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
 #' @param ExpressIndex character. expression corresponding to the spectral index to be explored ()
-#' @param repeats.allowed boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time
+#' @param Permutations boolean. either compute all permutations, or all combinations
 #' @param nbCPU numeric. number of CPU for multithreading
 #'
 #' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
-#' @importFrom gtools combinations
+#' @importFrom gtools combinations permutations
 #' @importFrom progress progress_bar
 #' @importFrom Rfast correls
 #' @importFrom pbapply pblapply
 #' @export
 
-Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.allowed = FALSE, nbCPU = 1){
+Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutations = FALSE, nbCPU = 1){
 
   # number of bands in reflectance data
   nbBands <- length(Spectral_Bands)
@@ -755,10 +755,13 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.all
                                       replacement = '',
                                       x =  unlist(regmatches(ExpressIndex,
                                                              gregexpr("B[[:digit:]]+",ExpressIndex))))))
-  sortBand <- sort(nbBandsSI,index.return=T,decreasing = T)
+  sortBand <- sort(nbBandsSI,index.return=T,decreasing = F)
   matches <- unique(unlist(regmatches(ExpressIndex, gregexpr("B[[:digit:]]+", ExpressIndex))))[sortBand$ix]
-  BandCombs <- gtools::combinations(n = nbBands,r = length(matches),repeats.allowed = F)
-
+  if (Permutations==FALSE){
+    BandCombs <- gtools::combinations(n = nbBands,r = length(matches),repeats.allowed = F)
+  } else {
+    BandCombs <- gtools::permutations(n = nbBands,r = length(matches),repeats.allowed = F)
+  }
   Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
   colnames(Bands) <- matches
   Bands <- data.frame(Bands)
@@ -803,7 +806,6 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.all
 #' @param ReflMat numeric. reflectance matrix with ncol = nbands and nrows = nsamples
 #' @param Spectral_Bands numeric. vector containing central wavelength for each spectral band of ReflMat
 #' @param BPvars numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples
-#' @param repeats.allowed boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time
 #' @param nbCPU numeric. number of CPU for multithreading
 #'
 #' @return list. includes band Combinations and corresponding correlation between biophysical variables and SI
@@ -818,7 +820,7 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,repeats.all
 #' @importFrom future.apply future_lapply
 #' @export
 
-Optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, repeats.allowed = FALSE, nbCPU = 1){
+Optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
 
   # number of bands in reflectance data
   nbBands <- length(Spectral_Bands)

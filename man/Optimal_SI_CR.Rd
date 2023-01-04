@@ -5,13 +5,7 @@
 \title{This function computes the correlation between a set of vegetation properties
 and all combinations of spectral bands corresponding to a given type of spectral index}
 \usage{
-Optimal_SI_CR(
-  ReflMat,
-  Spectral_Bands,
-  BPvars,
-  repeats.allowed = FALSE,
-  nbCPU = 1
-)
+Optimal_SI_CR(ReflMat, Spectral_Bands, BPvars, nbCPU = 1)
 }
 \arguments{
 \item{ReflMat}{numeric. reflectance matrix with ncol = nbands and nrows = nsamples}
@@ -19,8 +13,6 @@ Optimal_SI_CR(
 \item{Spectral_Bands}{numeric. vector containing central wavelength for each spectral band of ReflMat}
 
 \item{BPvars}{numeric. Biophysical properties as matrix with ncol = nBPvars and nrows = nsamples}
-
-\item{repeats.allowed}{boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time}
 
 \item{nbCPU}{numeric. number of CPU for multithreading}
 }

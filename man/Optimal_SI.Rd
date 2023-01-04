@@ -10,7 +10,7 @@ Optimal_SI(
   Spectral_Bands,
   BPvars,
   ExpressIndex,
-  repeats.allowed = FALSE,
+  Permutations = FALSE,
   nbCPU = 1
 )
 }
@@ -23,7 +23,7 @@ Optimal_SI(
 
 \item{ExpressIndex}{character. expression corresponding to the spectral index to be explored ()}
 
-\item{repeats.allowed}{boolean. should combinations include repetitions? set false if SI expression is symmetrical to gain time}
+\item{Permutations}{boolean. either compute all permutations, or all combinations}
 
 \item{nbCPU}{numeric. number of CPU for multithreading}
 }
