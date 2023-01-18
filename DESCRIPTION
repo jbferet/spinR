@@ -1,6 +1,6 @@
 Package: spinR
 Title: Spectral Indices calculator with R
-Version: 0.3
+Version: 0.4
 Authors@R: 
     person(given = "Jean-Baptiste", 
     					    family = "Feret", 

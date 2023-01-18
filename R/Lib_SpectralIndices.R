@@ -56,7 +56,7 @@ AUC <- function(Refl, SensorBands, AUCminmax, ReflFactor=1){
 #'
 #' @return CR list. raster object corresponding to continuum removed value
 #' @export
-Compute_CR <- function(WLmin, WLmax, WLtarget, boundaries, target){
+compute_CR <- function(WLmin, WLmax, WLtarget, boundaries, target){
 
   CR <- target/(boundaries[[1]]+(WLtarget-WLmin)*(boundaries[[2]]-boundaries[[1]])/(WLmax-WLmin))
   return(CR)
@@ -74,7 +74,7 @@ Compute_CR <- function(WLmin, WLmax, WLtarget, boundaries, target){
 #'
 #' @return numeric. band numbers of original sensor corresponding to S2
 #' @export
-Compute_SI_fromExp <- function(listBands, Refl, SensorBands, ExpressIndex , ReflFactor=1,
+compute_SI_fromExp <- function(listBands, Refl, SensorBands, ExpressIndex , ReflFactor=1,
                                                   NameIndex = NULL, p = NULL){
 
   # define which bands to be used in the spectral index
@@ -151,9 +151,9 @@ Compute_SI_fromExp <- function(listBands, Refl, SensorBands, ExpressIndex , Refl
 #' @importFrom Rfast correls
 #' @export
 
-Compute_SI_fromExp_Corr <- function(listBands, Refl, SensorBands, ExpressIndex, BPvars,
+compute_SI_fromExp_Corr <- function(listBands, Refl, SensorBands, ExpressIndex, BPvars,
                                     ReflFactor = 1, NameIndex = 'SI'){
-  SIopt <- Compute_SI_fromExp(listBands = listBands,
+  SIopt <- compute_SI_fromExp(listBands = listBands,
                               Refl = Refl,
                               SensorBands = SensorBands,
                               ExpressIndex = ExpressIndex,
@@ -175,13 +175,13 @@ Compute_SI_fromExp_Corr <- function(listBands, Refl, SensorBands, ExpressIndex, 
 #' @importFrom Rfast correls
 #' @export
 
-Compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
+compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
 
   if (dim(Refl)[1]==length(SensorBands)){
     Refl <- t(Refl)
   }
   bands <- get_closest_bands(SensorBands,listBands)
-  SIopt <- Compute_CR(WLmin = as.numeric(listBands[1]), WLmax = as.numeric(listBands[3]),
+  SIopt <- compute_CR(WLmin = as.numeric(listBands[1]), WLmax = as.numeric(listBands[3]),
                       WLtarget = as.numeric(listBands[2]),
                       boundaries = list(Refl[,bands[1]], Refl[,bands[3]]), target = Refl[,bands[2]])
   corr_BP_SI <- Rfast::correls(x = BPvars,y = SIopt,type = 'pearson')[,1]
@@ -210,12 +210,12 @@ Compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
 #' @importFrom raster stack brick
 #' @export
 
-Compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
-                                          StackOut = T, ReflFactor = 1, Offset = 0,
-                                          S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
-                                                               'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
-                                                               'B8' = 832.8, 'B8A' = 864.7,
-                                                               'B11' = 1613.7, 'B12' = 2202.4)){
+compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
+                                StackOut = T, ReflFactor = 1, Offset = 0,
+                                S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
+                                                     'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
+                                                     'B8' = 832.8, 'B8A' = 864.7,
+                                                     'B11' = 1613.7, 'B12' = 2202.4)){
   SpectralIndices <- list()
   Sen2S2 <- get_closest_bands(SensorBands,S2Bands)
   ClassRaster <- class(Refl)[1]
@@ -415,11 +415,15 @@ Compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
   #   SpectralIndices$SR <- SR
   # }
   if ('CR_SWIR'%in%Sel_Indices){
-    CR_SWIR <- Refl[["B11"]]/(Refl[["B8A"]]+(S2Bands['B11']-S2Bands['B8A'])*(Refl[["B12"]]-Refl[["B8A"]])/(S2Bands['B12']-S2Bands['B8A']))
+    CR_SWIR <- Refl[["B11"]]/(Refl[["B8A"]]+(as.numeric(S2Bands['B11']-S2Bands['B8A']))*
+                                (Refl[["B12"]]-Refl[["B8A"]])/
+                                (as.numeric(S2Bands['B12']-S2Bands['B8A'])))
     SpectralIndices$CR_SWIR <- CR_SWIR
   }
   if ('CR_RE'%in%Sel_Indices){
-    CR_RE <- Refl[["B5"]]/(Refl[["B4"]]+(S2Bands['B5']-S2Bands['B4'])*(Refl[["B6"]]-Refl[["B4"]])/(S2Bands['B6']-S2Bands['B4']))
+    CR_RE <- Refl[["B5"]]/(Refl[["B4"]]+(as.numeric(S2Bands['B5']-S2Bands['B4']))*
+                             (Refl[["B6"]]-Refl[["B4"]])/
+                             (as.numeric(S2Bands['B6']-S2Bands['B4'])))
     SpectralIndices$CR_RE <- CR_RE
   }
 
@@ -447,7 +451,7 @@ Compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
 #' - listIndices: list of spectral indices computable with the function
 #' @export
 
-Compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
+compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
                                      S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
                                                           'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
                                                           'B8' = 832.8, 'B8A' = 864.7,
@@ -694,7 +698,7 @@ CR_WL <- function(Refl, SensorBands, CRbands, ReflFactor=1){
     pb$tick()
     bandrank <- get_closest_bands(SensorBands,band)
     raster2CR <- readRasterBands(Refl = Refl, Bands = bandrank, ReflFactor=ReflFactor)
-    CR[[as.character(band)]] <- Compute_CR(WLmin = CRmin, WLmax = CRmax,
+    CR[[as.character(band)]] <- compute_CR(WLmin = CRmin, WLmax = CRmax,
                                            WLtarget = band, boundaries=CRminmax,
                                            target=raster2CR)
   }
@@ -746,7 +750,7 @@ IQR_outliers <- function(DistVal,weightIRQ = 1.5){
 #' @importFrom pbapply pblapply
 #' @export
 
-Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutations = FALSE, nbCPU = 1){
+optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutations = FALSE, nbCPU = 1){
 
   # number of bands in reflectance data
   nbBands <- length(Spectral_Bands)
@@ -823,7 +827,7 @@ Optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutation
 #' @importFrom future.apply future_lapply
 #' @export
 
-Optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
+optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
 
   # number of bands in reflectance data
   nbBands <- length(Spectral_Bands)
@@ -912,7 +916,7 @@ sub_SI_Corr <- function(Bands, Refl, SensorBands, ExpressIndex, BPvars, ReflFact
 
   Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
   SIopt <- pblapply(Bands_SI,
-                    FUN = Compute_SI_fromExp_Corr,
+                    FUN = compute_SI_fromExp_Corr,
                     Refl = Refl,
                     SensorBands = SensorBands,
                     ExpressIndex = ExpressIndex,
@@ -940,7 +944,7 @@ sub_SI_Corr <- function(Bands, Refl, SensorBands, ExpressIndex, BPvars, ReflFact
 sub_SI_CR_Corr <- function(Bands, Refl, SensorBands, BPvars, p=NULL){
   Bands_SI <- lapply(seq_len(nrow(Bands)), function(i) Bands[i,])
   SIopt <- pblapply(Bands_SI,
-                    FUN = Compute_SI_CR_Corr,
+                    FUN = compute_SI_CR_Corr,
                     Refl = Refl,
                     SensorBands = SensorBands,
                     BPvars = BPvars)
