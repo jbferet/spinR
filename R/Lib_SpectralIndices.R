@@ -349,7 +349,7 @@ compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
     SpectralIndices$NDI_45 <- NDI_45
   }
   if ('NDII'%in%Sel_Indices){
-    NDII <- (Refl[["B8A"]]-Refl[["B11"]])/(Refl[["B8A"]]+Refl[["B11"]])
+    NDII <- (Refl[["B8"]]-Refl[["B11"]])/(Refl[["B8"]]+Refl[["B11"]])
     SpectralIndices$NDII <- NDII
   }
   if ("NDSI" %in% Sel_Indices) {
@@ -838,7 +838,6 @@ optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
   Bands <- do.call(cbind,lapply(seq_len(ncol(BandCombs)), function(i) Spectral_Bands[BandCombs[,i]]))
   colnames(Bands) <- matches
   Bands <- data.frame(Bands)
-  nbcb <-
   if (nbCPU==1){
     SIopt <- sub_SI_CR_Corr(Bands = Bands,
                             Refl = ReflMat,
@@ -853,11 +852,11 @@ optimal_SI_CR <- function(ReflMat, Spectral_Bands, BPvars, nbCPU = 1){
     with_progress({
       p <- progressr::progressor(steps = nbCPU*50)
       SIopt <- future_lapply(Bands2,
-                              FUN = sub_SI_CR_Corr,
-                              Refl = ReflMat,
-                              SensorBands = Spectral_Bands,
-                              BPvars = BPvars, p,
-                              future.packages = c("Rfast","pbapply"))
+                             FUN = sub_SI_CR_Corr,
+                             Refl = ReflMat,
+                             SensorBands = Spectral_Bands,
+                             BPvars = BPvars, p,
+                             future.packages = c("Rfast","pbapply"))
     })
     plan(sequential)
     SIopt <- do.call(rbind,SIopt)
