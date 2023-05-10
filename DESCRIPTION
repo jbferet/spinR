@@ -23,4 +23,5 @@ Imports:
     progressr,
     raster,
     Rfast,
-    snow
+    snow,
+    stringr

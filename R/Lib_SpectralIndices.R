@@ -1080,3 +1080,140 @@ sub_SI_CR_Corr <- function(Bands, Refl, SensorBands, BPvars, p=NULL){
 #     }
 #   }
 # }
+
+
+#' Reads ENVI hdr file
+#'
+#' @param HDRpath Path of the hdr file
+#'
+#' @return list of the content of the hdr file
+#' @export
+read_ENVI_header <- function(HDRpath) {
+  # header <- paste(header, collapse = "\n")
+  if (!grepl(".hdr$", HDRpath)) {
+    stop("File extension should be .hdr")
+  }
+  HDR <- readLines(HDRpath)
+  ## check ENVI at beginning of file
+  if (!grepl("ENVI", HDR[1])) {
+    stop("Not an ENVI header (ENVI keyword missing)")
+  } else {
+    HDR <- HDR [-1]
+  }
+  ## remove curly braces and put multi-line key-value-pairs into one line
+  HDR <- gsub("\\{([^}]*)\\}", "\\1", HDR)
+  l <- grep("\\{", HDR)
+  r <- grep("\\}", HDR)
+
+  if (length(l) != length(r)) {
+    stop("Error matching curly braces in header (differing numbers).")
+  }
+
+  if (any(r <= l)) {
+    stop("Mismatch of curly braces in header.")
+  }
+
+  HDR[l] <- sub("\\{", "", HDR[l])
+  HDR[r] <- sub("\\}", "", HDR[r])
+
+  for (i in rev(seq_along(l))) {
+    HDR <- c(
+      HDR [seq_len(l [i] - 1)],
+      paste(HDR [l [i]:r [i]], collapse = "\n"),
+      HDR [-seq_len(r [i])]
+    )
+  }
+
+  ## split key = value constructs into list with keys as names
+  HDR <- sapply(HDR, split_line, "=", USE.NAMES = FALSE)
+  names(HDR) <- tolower(names(HDR))
+
+  ## process numeric values
+  tmp <- names(HDR) %in% c(
+    "samples", "lines", "bands", "header offset", "data type",
+    "byte order", "default bands", "data ignore value",
+    "wavelength", "fwhm", "data gain values"
+  )
+  HDR [tmp] <- lapply(HDR [tmp], function(x) {
+    as.numeric(unlist(strsplit(x, ",")))
+  })
+
+  return(HDR)
+}
+
+
+#' get hdr name from image file name, assuming it is BIL format
+#'
+#' @param ImPath path of the image
+#'
+#' @return corresponding hdr
+#' @import tools
+#' @export
+get_HDR_name <- function(ImPath) {
+  if (file_ext(ImPath) == "") {
+    ImPathHDR <- paste(ImPath, ".hdr", sep = "")
+  } else if (file_ext(ImPath) == "bil") {
+    ImPathHDR <- gsub(".bil", ".hdr", ImPath)
+  } else if (file_ext(ImPath) == "zip") {
+    ImPathHDR <- gsub(".zip", ".hdr", ImPath)
+  } else {
+    ImPathHDR <- paste(file_path_sans_ext(ImPath), ".hdr", sep = "")
+  }
+
+  if (!file.exists(ImPathHDR)) {
+    message("WARNING : COULD NOT FIND HDR FILE")
+    print(ImPathHDR)
+    message("Process may stop")
+  }
+  return(ImPathHDR)
+}
+
+
+#' writes ENVI hdr file
+#'
+#' @param HDR content to be written
+#' @param HDRpath Path of the hdr file
+#'
+#' @return None
+#' @importFrom stringr str_count
+#' @export
+write_ENVI_header <- function(HDR, HDRpath) {
+  h <- lapply(HDR, function(x) {
+    if (length(x) > 1 || (is.character(x) && str_count(x, "\\w+") > 1)) {
+      x <- paste0("{", paste(x, collapse = ","), "}")
+    }
+    # convert last numerics
+    x <- as.character(x)
+  })
+  writeLines(c("ENVI", paste(names(HDR), h, sep = " = ")), con = HDRpath)
+  return(invisible())
+}
+
+
+
+
+#' ENVI functions
+#'
+#' based on https://github.com/cran/hyperSpec/blob/master/R/read.ENVI.R
+#' added wavelength, fwhm, ... to header reading
+#' Title
+#'
+#' @param x character.
+#' @param separator character
+#' @param trim.blank boolean.
+#'
+#' @return list.
+#' @export
+split_line <- function(x, separator, trim.blank = TRUE) {
+  tmp <- regexpr(separator, x)
+  key <- substr(x, 1, tmp - 1)
+  value <- substr(x, tmp + 1, nchar(x))
+  if (trim.blank) {
+    blank.pattern <- "^[[:blank:]]*([^[:blank:]]+.*[^[:blank:]]+)[[:blank:]]*$"
+    key <- sub(blank.pattern, "\\1", key)
+    value <- sub(blank.pattern, "\\1", value)
+  }
+  value <- as.list(value)
+  names(value) <- key
+  return(value)
+}
