@@ -123,6 +123,7 @@ compute_S2SI_BigRaster <- function(raster_path, PathOut, MaskRaster = FALSE,
 #'
 #' @return list. list of rasters corresponding to spectral indices
 #' @importFrom methods is
+#' @importFrom utils read.table
 #' @importFrom raster raster brick blockSize readStart readStop getValues writeStart writeStop writeValues
 #' @export
 
@@ -158,7 +159,7 @@ stack_BigRaster <- function(list_rasters, stack_file, MaskRaster = FALSE,
     format = "Stacking rasters [:bar] :percent in :elapsedfull , estimated time remaining :eta",
     total = pgbarlength, clear = FALSE, width= 100)
   # output files
-  r_out <- writeStart(brick(stack(list_rasters)), filename = stack_file,format = "ENVI", overwrite = TRUE)
+  r_out <- writeStart(brick(stack(list_rasters)), filename = stack_file,format = "EHdr", overwrite = TRUE)
   # loop over blocks
   for (i in seq_along(blk$row)) {
     # read values for block
@@ -173,7 +174,7 @@ stack_BigRaster <- function(list_rasters, stack_file, MaskRaster = FALSE,
         BlockVal[[band]][elim] <- NA
       }
     }
-    r_out <- writeValues(r_out, do.call('cbind',BlockVal), blk$row[i],format = "ENVI", overwrite = TRUE)
+    r_out <- writeValues(r_out, do.call('cbind',BlockVal), blk$row[i],format = "EHdr", overwrite = TRUE)
     pb$tick()
   }
   # close files
@@ -184,9 +185,13 @@ stack_BigRaster <- function(list_rasters, stack_file, MaskRaster = FALSE,
     r_inmask <- readStop(r_inmask)
   }
   r_out <- writeStop(r_out)
-  stack_file <- paste(stack_file, '.envi',sep = '')
+  # stack_file <- paste(stack_file, '.envi',sep = '')
+  # convert HDR to ENVI format
+  raster::hdr(raster(stack_file), format = "ENVI")
   HDR <- read_ENVI_header(get_HDR_name(stack_file))
   HDR$`band names` <- paste('',names_rasters,'',sep = '')
+  HDR$`coordinate system string` <- read.table(paste(file_path_sans_ext(stack_file), ".prj", sep = ""))
+  HDR$`z plot range` <- NULL
   write_ENVI_header(HDR, get_HDR_name(stack_file))
   gc()
   return(stack_file)
