@@ -529,10 +529,10 @@ compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU
   }
   names(SpectralIndices) <- Sel_Indices
 
-  for (idx in Sel_Indices){
-    fsi <- get(idx)
-    SpectralIndices[[idx]] <- fsi(Refl)
-  }
+  # for (idx in Sel_Indices){
+  #   fsi <- get(idx)
+  #   SpectralIndices[[idx]] <- fsi(Refl)
+  # }
 
   # if ('ARI1'%in%Sel_Indices){
   #   ARI1 <- (1/Refl$B3)-(1/Refl$B5)

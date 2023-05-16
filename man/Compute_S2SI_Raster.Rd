@@ -13,6 +13,7 @@ compute_S2SI_Raster(
   Refl,
   SensorBands,
   Sel_Indices = "ALL",
+  nbCPU = 1,
   StackOut = T,
   ReflFactor = 1,
   Offset = 0,
@@ -26,6 +27,8 @@ compute_S2SI_Raster(
 \item{SensorBands}{numeric. wavelength in nanometers of the spectral bands of Refl.}
 
 \item{Sel_Indices}{list. list of spectral indices to be computed}
+
+\item{nbCPU}{numeric. number of CPU if parallel processing required}
 
 \item{StackOut}{logical. If TRUE returns a stack, otherwise a list of rasters.}
 

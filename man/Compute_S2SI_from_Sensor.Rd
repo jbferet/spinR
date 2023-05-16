@@ -13,6 +13,7 @@ compute_S2SI_from_Sensor(
   Refl,
   SensorBands,
   Sel_Indices = "ALL",
+  nbCPU = 1,
   S2Bands = data.frame(B2 = 492.7, B3 = 559.8, B4 = 664.6, B5 = 704.1, B6 = 740.5, B7 =
     782.8, B8 = 832.8, B8A = 864.7, B11 = 1613.7, B12 = 2202.4)
 )
@@ -23,6 +24,8 @@ compute_S2SI_from_Sensor(
 \item{SensorBands}{numeric. wavelength of the spectral bands corresponding to reflectance}
 
 \item{Sel_Indices}{list. list of spectral indices to be computed}
+
+\item{nbCPU}{numeric. number of CPU if parallel processing required}
 
 \item{S2Bands}{numeric. wavelength of the spectral bands corresponding to S2 (default = S2A)}
 }
