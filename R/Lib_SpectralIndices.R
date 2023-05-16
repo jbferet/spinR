@@ -198,6 +198,7 @@ compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
 #' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
 #' @param SensorBands numeric. wavelength in nanometers of the spectral bands of Refl.
 #' @param Sel_Indices  list. list of spectral indices to be computed
+#' @param nbCPU  numeric. number of CPU if parallel processing required
 #' @param StackOut logical. If TRUE returns a stack, otherwise a list of rasters.
 #' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
 #' @param Offset numeric. offset (when Refl between 0 and 1) to be applied on reflectance. Useful to avoid zero values
@@ -209,9 +210,11 @@ compute_SI_CR_Corr <- function(listBands, Refl, SensorBands, BPvars){
 #' @importFrom methods is
 #' @importFrom raster stack brick
 #' @importFrom progress progress_bar
+#' @importFrom future.apply future_lapply
+#' @importFrom future plan multiprocess multisession sequential
 #' @export
 
-compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
+compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU = 1,
                                 StackOut = T, ReflFactor = 1, Offset = 0,
                                 S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
                                                      'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
@@ -257,177 +260,198 @@ compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
   if (Sel_Indices[1]=='ALL'){
     Sel_Indices <- listIndices
   }
-  if ('ARI1'%in%Sel_Indices){
-    ARI1 <- (1/Refl[["B3"]])-(1/Refl[["B5"]])
-    SpectralIndices$ARI1 <- ARI1
-  }
-  if ('ARI2'%in%Sel_Indices){
-    ARI2 <- (Refl[["B8"]]/Refl[["B2"]])-(Refl[["B8"]]/Refl[["B3"]])
-    SpectralIndices$ARI2 <- ARI2
-  }
-  if ('ARVI'%in%Sel_Indices){
-    ARVI <- (Refl[["B8"]]-(2*Refl[["B4"]]-Refl[["B2"]]))/(Refl[["B8"]]+(2*Refl[["B4"]]-Refl[["B2"]]))
-    SpectralIndices$ARVI <- ARVI
-  }
-  if ('BAI'%in%Sel_Indices){
-    BAI <- (1/((0.1-Refl[["B4"]])**2+(0.06-Refl[["B8"]])**2))
-    SpectralIndices$BAI <- BAI
-  }
-  if ('BAIS2'%in%Sel_Indices){
-    BAIS2 <-  (1-((Refl[["B6"]]*Refl[["B7"]]*Refl[["B8A"]])/Refl[["B4"]])**0.5)*((Refl[["B12"]]-Refl[["B8A"]])/((Refl[["B12"]]+Refl[["B8A"]])**0.5)+1)
-    SpectralIndices$BAIS2 <- BAIS2
-  }
-  if ("CCCI" %in% Sel_Indices) {
-    CCCI <- ((Refl[["B8"]] - Refl[["B5"]]) / (Refl[["B8"]] + Refl[["B5"]])) / ((Refl[["B8"]] - Refl[["B4"]]) / (Refl[["B8"]] + Refl[["B4"]]))
-    SpectralIndices$CCCI <- CCCI
-  }
-  if ('CHL_RE'%in%Sel_Indices){
-    CHL_RE <- Refl[["B5"]]/Refl[["B8"]]
-    SpectralIndices$CHL_RE <- CHL_RE
-  }
-  if ('CRI1'%in%Sel_Indices){
-    CRI1 <- (1/Refl[["B2"]])-(1/Refl[["B3"]])
-    SpectralIndices$CRI1 <- CRI1
-  }
-  if ('CRI2'%in%Sel_Indices){
-    CRI2 <- (1/Refl[["B2"]])-(1/Refl[["B5"]])
-    SpectralIndices$CRI2 <- CRI2
-  }
-  if ('EVI'%in%Sel_Indices){
-    EVI <- 2.5*(Refl[["B8"]]-Refl[["B4"]])/((Refl[["B8"]]+6*Refl[["B4"]]-7.5*Refl[["B2"]]+1))
-    SpectralIndices$EVI <- EVI
-  }
-  if ('EVI2'%in%Sel_Indices){
-    EVI2 <- 2.5*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+2.4*Refl[["B4"]]+1)
-    SpectralIndices$EVI2 <- EVI2
-  }
-  if ('GRVI1'%in%Sel_Indices){
-    GRVI1 <- (Refl[["B4"]]-Refl[["B3"]])/(Refl[["B4"]]+Refl[["B3"]])
-    SpectralIndices$GRVI1 <- GRVI1
-  }
-  if ('GNDVI'%in%Sel_Indices){
-    GNDVI <- (Refl[["B8"]]-Refl[["B3"]])/(Refl[["B8"]]+Refl[["B3"]])
-    SpectralIndices$GNDVI <- GNDVI
-  }
-  if ('IRECI'%in%Sel_Indices){
-    IRECI <- (Refl[["B7"]]-Refl[["B4"]])/(Refl[["B5"]]/(Refl[["B6"]]))
-    SpectralIndices$IRECI <- IRECI
-  }
-  if ('LAI_SAVI'%in%Sel_Indices){
-    LAI_SAVI <- -log(0.371 + 1.5 * (Refl[["B8"]] - Refl[["B4"]]) / (Refl[["B8"]]+ Refl[["B4"]]+ 0.5)) / 2.4
-    SpectralIndices$LAI_SAVI <- LAI_SAVI
-  }
-  if  ('MCARI'%in%Sel_Indices){
-    MCARI <- (1-0.2*(Refl[["B5"]]-Refl[["B3"]])/(Refl[["B5"]]-Refl[["B4"]]))
-    SpectralIndices$MCARI <- MCARI
-  }
-  if ('mNDVI705'%in%Sel_Indices){
-    mNDVI705 <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B6"]]+Refl[["B5"]]-2*Refl[["B2"]])
-    SpectralIndices$mNDVI705 <- mNDVI705
-  }
-  if ('MSAVI2'%in%Sel_Indices){
-    MSAVI2 <- ((Refl[["B8"]]+1)-0.5*sqrt(((2*Refl[["B8"]])-1)**2+8*Refl[["B4"]]))
-    SpectralIndices$MSAVI2 <- MSAVI2
-  }
-  if ('MSI'%in%Sel_Indices){
-    MSI <- Refl[["B11"]]/Refl[["B8A"]]
-    SpectralIndices$MSI <- MSI
-  }
-  if ('mSR705'%in%Sel_Indices){
-    mSR705 <- (Refl[["B6"]]-Refl[["B2"]])/(Refl[["B5"]]-Refl[["B2"]])
-    SpectralIndices$mSR705 <- mSR705
-  }
-  if ('MTCI'%in%Sel_Indices){
-    MTCI <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B5"]]+Refl[["B4"]])
-    SpectralIndices$MTCI <- MTCI
-  }
-  if ('nBR_RAW'%in%Sel_Indices){
-    nBR_RAW <- (Refl[["B8"]]-Refl[["B12"]])/(Refl[["B8"]]+Refl[["B12"]])
-    SpectralIndices$nBR_RAW <- nBR_RAW
-  }
-  if ('NDI_45'%in%Sel_Indices){
-    NDI_45 <- (Refl[["B5"]]-Refl[["B4"]])/(Refl[["B5"]]+Refl[["B4"]])
-    SpectralIndices$NDI_45 <- NDI_45
-  }
-  if ('NDII'%in%Sel_Indices){
-    NDII <- (Refl[["B8"]]-Refl[["B11"]])/(Refl[["B8"]]+Refl[["B11"]])
-    SpectralIndices$NDII <- NDII
-  }
-  if ("NDSI" %in% Sel_Indices) {
-    ndsi <- (Refl[["B3"]] - Refl[["B11"]]) / (Refl[["B3"]] + Refl[["B11"]])
-    SpectralIndices$NDSI <- ndsi
-  }
-  if ('NDVI'%in%Sel_Indices){
-    NDVI <- (Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]])
-    SpectralIndices$NDVI <- NDVI
-  }
-  if ('NDVI_G'%in%Sel_Indices){
-    NDVI_G <- Refl[["B3"]]*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]])
-    SpectralIndices$NDVI_G <- NDVI_G
-  }
-  if ('NDVI705'%in%Sel_Indices){
-    NDVI705 <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B6"]]+Refl[["B5"]])
-    SpectralIndices$NDVI705 <- NDVI705
-  }
-  if ('NDWI1'%in%Sel_Indices){
-    NDWI1 <- (Refl[["B8A"]]-Refl[["B11"]])/(Refl[["B8A"]]+Refl[["B11"]])
-    SpectralIndices$NDWI1 <- NDWI1
-  }
-  if ('NDWI2'%in%Sel_Indices){
-    NDWI2 <- (Refl[["B8A"]]-Refl[["B12"]])/(Refl[["B8A"]]+Refl[["B12"]])
-    SpectralIndices$NDWI2 <- NDWI2
-  }
-  if ('PSRI'%in%Sel_Indices){
-    PSRI <- (Refl[["B4"]]-Refl[["B2"]])/(Refl[["B5"]])
-    SpectralIndices$PSRI <- PSRI
-  }
-  if ('PSRI_NIR'%in%Sel_Indices){
-    PSRI_NIR <- (Refl[["B4"]]-Refl[["B2"]])/(Refl[["B8"]])
-    SpectralIndices$PSRI_NIR <- PSRI_NIR
-  }
-  if ('RE_NDVI'%in%Sel_Indices){
-    RE_NDVI <- (Refl[["B8"]]-Refl[["B6"]])/(Refl[["B8"]]+Refl[["B6"]])
-    SpectralIndices$RE_NDVI <- RE_NDVI
-  }
-  if ('RE_NDWI'%in%Sel_Indices){
-    RE_NDWI <- (Refl[["B4"]]-Refl[["B6"]])/(Refl[["B4"]]+Refl[["B6"]])
-    SpectralIndices$RE_NDWI <- RE_NDWI
-  }
-  if ('S2REP'%in%Sel_Indices){
-    S2REP <- 705+35*(((0.5*(Refl[["B7"]]+Refl[["B4"]]))-Refl[["B6"]])/(Refl[["B7"]]-Refl[["B6"]]))
-    SpectralIndices$S2REP <- S2REP
-  }
-  if ('SAVI'%in%Sel_Indices){
-    SAVI <- 1.5*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]]+0.5)
-    SpectralIndices$SAVI <- SAVI
-  }
-  if ('SIPI'%in%Sel_Indices){
-    SIPI <- (Refl[["B8"]]-Refl[["B2"]])/(Refl[["B8"]]-Refl[["B4"]])
-    SpectralIndices$SIPI <- SIPI
-  }
-  if ('SR'%in%Sel_Indices){
-    SR <- Refl[["B8"]]/Refl[["B4"]]
-    SpectralIndices$SR <- SR
-  }
-  # if ('TCARI'%in%Sel_Indices){
-  #   SR <-
-  #
-  #     Refl[["B8"]]/Refl[["B4"]]
-  #   SpectralIndices$SR <- SR
-  # }
-  if ('CR_SWIR'%in%Sel_Indices){
-    CR_SWIR <- Refl[["B11"]]/(Refl[["B8A"]]+(as.numeric(S2Bands['B11']-S2Bands['B8A']))*
-                                (Refl[["B12"]]-Refl[["B8A"]])/
-                                (as.numeric(S2Bands['B12']-S2Bands['B8A'])))
-    SpectralIndices$CR_SWIR <- CR_SWIR
-  }
-  if ('CR_RE'%in%Sel_Indices){
-    CR_RE <- Refl[["B5"]]/(Refl[["B4"]]+(as.numeric(S2Bands['B5']-S2Bands['B4']))*
-                             (Refl[["B6"]]-Refl[["B4"]])/
-                             (as.numeric(S2Bands['B6']-S2Bands['B4'])))
-    SpectralIndices$CR_RE <- CR_RE
+
+  functSI <- function(idx, Refl, S2Bands){
+    fsi <- get(idx)
+    SpectralIndices <- fsi(Refl, S2Bands)
+    return(SpectralIndices)
   }
 
+  if (nbCPU>1){
+    plan(multisession, workers = nbCPU) ## Parallelize using four cores
+    SpectralIndices <- future_lapply(Sel_Indices,
+                                     FUN = functSI,
+                                     Refl = Refl,
+                                     S2Bands = S2Bands)
+    plan(sequential)
+  } else {
+    SpectralIndices <- lapply(Sel_Indices,
+                              FUN = functSI,
+                              Refl = Refl,
+                              S2Bands = S2Bands)
+  }
+  names(SpectralIndices) <- Sel_Indices
+
+  # if ('ARI1'%in%Sel_Indices){
+  #   ARI1 <- (1/Refl[["B3"]])-(1/Refl[["B5"]])
+  #   SpectralIndices$ARI1 <- ARI1
+  # }
+  # if ('ARI2'%in%Sel_Indices){
+  #   ARI2 <- (Refl[["B8"]]/Refl[["B2"]])-(Refl[["B8"]]/Refl[["B3"]])
+  #   SpectralIndices$ARI2 <- ARI2
+  # }
+  # if ('ARVI'%in%Sel_Indices){
+  #   ARVI <- (Refl[["B8"]]-(2*Refl[["B4"]]-Refl[["B2"]]))/(Refl[["B8"]]+(2*Refl[["B4"]]-Refl[["B2"]]))
+  #   SpectralIndices$ARVI <- ARVI
+  # }
+  # if ('BAI'%in%Sel_Indices){
+  #   BAI <- (1/((0.1-Refl[["B4"]])**2+(0.06-Refl[["B8"]])**2))
+  #   SpectralIndices$BAI <- BAI
+  # }
+  # if ('BAIS2'%in%Sel_Indices){
+  #   BAIS2 <-  (1-((Refl[["B6"]]*Refl[["B7"]]*Refl[["B8A"]])/Refl[["B4"]])**0.5)*((Refl[["B12"]]-Refl[["B8A"]])/((Refl[["B12"]]+Refl[["B8A"]])**0.5)+1)
+  #   SpectralIndices$BAIS2 <- BAIS2
+  # }
+  # if ("CCCI" %in% Sel_Indices) {
+  #   CCCI <- ((Refl[["B8"]] - Refl[["B5"]]) / (Refl[["B8"]] + Refl[["B5"]])) / ((Refl[["B8"]] - Refl[["B4"]]) / (Refl[["B8"]] + Refl[["B4"]]))
+  #   SpectralIndices$CCCI <- CCCI
+  # }
+  # if ('CHL_RE'%in%Sel_Indices){
+  #   CHL_RE <- Refl[["B5"]]/Refl[["B8"]]
+  #   SpectralIndices$CHL_RE <- CHL_RE
+  # }
+  # if ('CRI1'%in%Sel_Indices){
+  #   CRI1 <- (1/Refl[["B2"]])-(1/Refl[["B3"]])
+  #   SpectralIndices$CRI1 <- CRI1
+  # }
+  # if ('CRI2'%in%Sel_Indices){
+  #   CRI2 <- (1/Refl[["B2"]])-(1/Refl[["B5"]])
+  #   SpectralIndices$CRI2 <- CRI2
+  # }
+  # if ('EVI'%in%Sel_Indices){
+  #   EVI <- 2.5*(Refl[["B8"]]-Refl[["B4"]])/((Refl[["B8"]]+6*Refl[["B4"]]-7.5*Refl[["B2"]]+1))
+  #   SpectralIndices$EVI <- EVI
+  # }
+  # if ('EVI2'%in%Sel_Indices){
+  #   EVI2 <- 2.5*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+2.4*Refl[["B4"]]+1)
+  #   SpectralIndices$EVI2 <- EVI2
+  # }
+  # if ('GRVI1'%in%Sel_Indices){
+  #   GRVI1 <- (Refl[["B4"]]-Refl[["B3"]])/(Refl[["B4"]]+Refl[["B3"]])
+  #   SpectralIndices$GRVI1 <- GRVI1
+  # }
+  # if ('GNDVI'%in%Sel_Indices){
+  #   GNDVI <- (Refl[["B8"]]-Refl[["B3"]])/(Refl[["B8"]]+Refl[["B3"]])
+  #   SpectralIndices$GNDVI <- GNDVI
+  # }
+  # if ('IRECI'%in%Sel_Indices){
+  #   IRECI <- (Refl[["B7"]]-Refl[["B4"]])/(Refl[["B5"]]/(Refl[["B6"]]))
+  #   SpectralIndices$IRECI <- IRECI
+  # }
+  # if ('LAI_SAVI'%in%Sel_Indices){
+  #   LAI_SAVI <- -log(0.371 + 1.5 * (Refl[["B8"]] - Refl[["B4"]]) / (Refl[["B8"]]+ Refl[["B4"]]+ 0.5)) / 2.4
+  #   SpectralIndices$LAI_SAVI <- LAI_SAVI
+  # }
+  # if  ('MCARI'%in%Sel_Indices){
+  #   MCARI <- (1-0.2*(Refl[["B5"]]-Refl[["B3"]])/(Refl[["B5"]]-Refl[["B4"]]))
+  #   SpectralIndices$MCARI <- MCARI
+  # }
+  # if ('mNDVI705'%in%Sel_Indices){
+  #   mNDVI705 <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B6"]]+Refl[["B5"]]-2*Refl[["B2"]])
+  #   SpectralIndices$mNDVI705 <- mNDVI705
+  # }
+  # if ('MSAVI2'%in%Sel_Indices){
+  #   MSAVI2 <- ((Refl[["B8"]]+1)-0.5*sqrt(((2*Refl[["B8"]])-1)**2+8*Refl[["B4"]]))
+  #   SpectralIndices$MSAVI2 <- MSAVI2
+  # }
+  # if ('MSI'%in%Sel_Indices){
+  #   MSI <- Refl[["B11"]]/Refl[["B8A"]]
+  #   SpectralIndices$MSI <- MSI
+  # }
+  # if ('mSR705'%in%Sel_Indices){
+  #   mSR705 <- (Refl[["B6"]]-Refl[["B2"]])/(Refl[["B5"]]-Refl[["B2"]])
+  #   SpectralIndices$mSR705 <- mSR705
+  # }
+  # if ('MTCI'%in%Sel_Indices){
+  #   MTCI <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B5"]]+Refl[["B4"]])
+  #   SpectralIndices$MTCI <- MTCI
+  # }
+  # if ('nBR_RAW'%in%Sel_Indices){
+  #   nBR_RAW <- (Refl[["B8"]]-Refl[["B12"]])/(Refl[["B8"]]+Refl[["B12"]])
+  #   SpectralIndices$nBR_RAW <- nBR_RAW
+  # }
+  # if ('NDI_45'%in%Sel_Indices){
+  #   NDI_45 <- (Refl[["B5"]]-Refl[["B4"]])/(Refl[["B5"]]+Refl[["B4"]])
+  #   SpectralIndices$NDI_45 <- NDI_45
+  # }
+  # if ('NDII'%in%Sel_Indices){
+  #   NDII <- (Refl[["B8"]]-Refl[["B11"]])/(Refl[["B8"]]+Refl[["B11"]])
+  #   SpectralIndices$NDII <- NDII
+  # }
+  # if ("NDSI" %in% Sel_Indices) {
+  #   ndsi <- (Refl[["B3"]] - Refl[["B11"]]) / (Refl[["B3"]] + Refl[["B11"]])
+  #   SpectralIndices$NDSI <- ndsi
+  # }
+  # if ('NDVI'%in%Sel_Indices){
+  #   NDVI <- (Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]])
+  #   SpectralIndices$NDVI <- NDVI
+  # }
+  # if ('NDVI_G'%in%Sel_Indices){
+  #   NDVI_G <- Refl[["B3"]]*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]])
+  #   SpectralIndices$NDVI_G <- NDVI_G
+  # }
+  # if ('NDVI705'%in%Sel_Indices){
+  #   NDVI705 <- (Refl[["B6"]]-Refl[["B5"]])/(Refl[["B6"]]+Refl[["B5"]])
+  #   SpectralIndices$NDVI705 <- NDVI705
+  # }
+  # if ('NDWI1'%in%Sel_Indices){
+  #   NDWI1 <- (Refl[["B8A"]]-Refl[["B11"]])/(Refl[["B8A"]]+Refl[["B11"]])
+  #   SpectralIndices$NDWI1 <- NDWI1
+  # }
+  # if ('NDWI2'%in%Sel_Indices){
+  #   NDWI2 <- (Refl[["B8A"]]-Refl[["B12"]])/(Refl[["B8A"]]+Refl[["B12"]])
+  #   SpectralIndices$NDWI2 <- NDWI2
+  # }
+  # if ('PSRI'%in%Sel_Indices){
+  #   PSRI <- (Refl[["B4"]]-Refl[["B2"]])/(Refl[["B5"]])
+  #   SpectralIndices$PSRI <- PSRI
+  # }
+  # if ('PSRI_NIR'%in%Sel_Indices){
+  #   PSRI_NIR <- (Refl[["B4"]]-Refl[["B2"]])/(Refl[["B8"]])
+  #   SpectralIndices$PSRI_NIR <- PSRI_NIR
+  # }
+  # if ('RE_NDVI'%in%Sel_Indices){
+  #   RE_NDVI <- (Refl[["B8"]]-Refl[["B6"]])/(Refl[["B8"]]+Refl[["B6"]])
+  #   SpectralIndices$RE_NDVI <- RE_NDVI
+  # }
+  # if ('RE_NDWI'%in%Sel_Indices){
+  #   RE_NDWI <- (Refl[["B4"]]-Refl[["B6"]])/(Refl[["B4"]]+Refl[["B6"]])
+  #   SpectralIndices$RE_NDWI <- RE_NDWI
+  # }
+  # if ('S2REP'%in%Sel_Indices){
+  #   S2REP <- 705+35*(((0.5*(Refl[["B7"]]+Refl[["B4"]]))-Refl[["B6"]])/(Refl[["B7"]]-Refl[["B6"]]))
+  #   SpectralIndices$S2REP <- S2REP
+  # }
+  # if ('SAVI'%in%Sel_Indices){
+  #   SAVI <- 1.5*(Refl[["B8"]]-Refl[["B4"]])/(Refl[["B8"]]+Refl[["B4"]]+0.5)
+  #   SpectralIndices$SAVI <- SAVI
+  # }
+  # if ('SIPI'%in%Sel_Indices){
+  #   SIPI <- (Refl[["B8"]]-Refl[["B2"]])/(Refl[["B8"]]-Refl[["B4"]])
+  #   SpectralIndices$SIPI <- SIPI
+  # }
+  # if ('SR'%in%Sel_Indices){
+  #   SR <- Refl[["B8"]]/Refl[["B4"]]
+  #   SpectralIndices$SR <- SR
+  # }
+  # # if ('TCARI'%in%Sel_Indices){
+  # #   SR <-
+  # #
+  # #     Refl[["B8"]]/Refl[["B4"]]
+  # #   SpectralIndices$SR <- SR
+  # # }
+  # if ('CR_SWIR'%in%Sel_Indices){
+  #   CR_SWIR <- Refl[["B11"]]/(Refl[["B8A"]]+(as.numeric(S2Bands['B11']-S2Bands['B8A']))*
+  #                               (Refl[["B12"]]-Refl[["B8A"]])/
+  #                               (as.numeric(S2Bands['B12']-S2Bands['B8A'])))
+  #   SpectralIndices$CR_SWIR <- CR_SWIR
+  # }
+  # if ('CR_RE'%in%Sel_Indices){
+  #   CR_RE <- Refl[["B5"]]/(Refl[["B4"]]+(as.numeric(S2Bands['B5']-S2Bands['B4']))*
+  #                            (Refl[["B6"]]-Refl[["B4"]])/
+  #                            (as.numeric(S2Bands['B6']-S2Bands['B4'])))
+  #   SpectralIndices$CR_RE <- CR_RE
+  # }
   if(StackOut)
     SpectralIndices <- raster::stack(SpectralIndices)
 
@@ -443,17 +467,21 @@ compute_S2SI_Raster <- function(Refl, SensorBands, Sel_Indices='ALL',
 #' https://www.sentinel-hub.com/eotaxonomy/indices
 #'
 #' @param Refl numeric. Reflectance dataset defined in matrix
-#' @param Sel_Indices list. list of spectral indices to be computed
 #' @param SensorBands numeric. wavelength of the spectral bands corresponding to reflectance
+#' @param Sel_Indices list. list of spectral indices to be computed
+#' @param nbCPU  numeric. number of CPU if parallel processing required
 #' @param S2Bands numeric. wavelength of the spectral bands corresponding to S2 (default = S2A)
 #'
 #' @return list. includes
 #' - SpectralIndices: List of spectral indices computed from the reflectance initially provided
 #' - listIndices: list of spectral indices computable with the function
 #' @importFrom data.table data.table
+#' @importFrom snow splitRows
+#' @importFrom future plan multiprocess multisession sequential
+#' @importFrom future.apply future_lapply
 #' @export
 
-compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
+compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU = 1,
                                      S2Bands = data.frame('B2'=492.7, 'B3'=559.8, 'B4'=664.6,
                                                           'B5'=704.1, 'B6'=740.5, 'B7' = 782.8,
                                                           'B8' = 832.8, 'B8A' = 864.7,
@@ -479,168 +507,195 @@ compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL',
   if (Sel_Indices[1]=='ALL'){
     Sel_Indices = listIndices
   }
-  if ('ARI1'%in%Sel_Indices){
-    ARI1 <- (1/Refl$B3)-(1/Refl$B5)
-    SpectralIndices$ARI1 <- ARI1
+
+  functSI <- function(idx, Refl, S2Bands){
+    fsi <- get(idx)
+    SpectralIndices <- fsi(Refl, S2Bands)
+    return(SpectralIndices)
   }
-  if ('ARI2'%in%Sel_Indices){
-    ARI2 <- (Refl$B8/Refl$B2)-(Refl$B8/Refl$B3)
-    SpectralIndices$ARI2 <- ARI2
+
+  if (nbCPU>1){
+    plan(multisession, workers = nbCPU) ## Parallelize using four cores
+    SpectralIndices <- future_lapply(Sel_Indices,
+                                     FUN = functSI,
+                                     Refl = Refl,
+                                     S2Bands = S2Bands)
+    plan(sequential)
+  } else {
+    SpectralIndices <- lapply(Sel_Indices,
+                              FUN = functSI,
+                              Refl = Refl,
+                              S2Bands = S2Bands)
   }
-  if ('ARVI'%in%Sel_Indices){
-    ARVI <- (Refl$B8-(2*Refl$B4-Refl$B2))/(Refl$B8+(2*Refl$B4-Refl$B2))
-    SpectralIndices$ARVI <- ARVI
+  names(SpectralIndices) <- Sel_Indices
+
+  for (idx in Sel_Indices){
+    fsi <- get(idx)
+    SpectralIndices[[idx]] <- fsi(Refl)
   }
-  if ('BAI'%in%Sel_Indices){
-    BAI <- (1/((0.1-Refl$B4)**2+(0.06-Refl$B8)**2))
-    SpectralIndices$BAI <- BAI
-  }
-  if ('BAIS2'%in%Sel_Indices){
-    BAIS2 <-  (1-((Refl$B6 * Refl$B7 * Refl$B8A)/Refl$B4)**0.5)*((Refl$B12 - Refl$B8A)/((Refl$B12 + Refl$B8A)**0.5)+1)
-    SpectralIndices$BAIS2 <- BAIS2
-  }
-  if ("CCCI" %in% Sel_Indices) {
-    CCCI <- ((Refl$B8 - Refl$B5) / (Refl$B8 + Refl$B5)) / ((Refl$B8 - Refl$B4) / (Refl$B8 + Refl$B4))
-    SpectralIndices$CCCI <- CCCI
-  }
-  if ('CHL_RE'%in%Sel_Indices){
-    CHL_RE <- Refl$B5/Refl$B8
-    SpectralIndices$CHL_RE <- CHL_RE
-  }
-  if ('CRI1'%in%Sel_Indices){
-    CRI1 <- (1/Refl$B2)-(1/Refl$B3)
-    SpectralIndices$CRI1 <- CRI1
-  }
-  if ('CRI2'%in%Sel_Indices){
-    CRI2 <- (1/Refl$B2)-(1/Refl$B5)
-    SpectralIndices$CRI2 <- CRI2
-  }
-  if ('EVI'%in%Sel_Indices){
-    EVI <- 2.5*(Refl$B8-Refl$B4)/((Refl$B8+6*Refl$B4-7.5*Refl$B2+1))
-    SpectralIndices$EVI <- EVI
-  }
-  if ('EVI2'%in%Sel_Indices){
-    EVI2 <- 2.5*(Refl$B8-Refl$B4)/(Refl$B8+2.4*Refl$B4+1)
-    SpectralIndices$EVI2 <- EVI2
-  }
-  if ('GRVI1'%in%Sel_Indices){
-    GRVI1 <- (Refl$B4-Refl$B3)/(Refl$B4+Refl$B3)
-    SpectralIndices$GRVI1 <- GRVI1
-  }
-  if ('GNDVI'%in%Sel_Indices){
-    GNDVI <- (Refl$B8-Refl$B3)/(Refl$B8+Refl$B3)
-    SpectralIndices$GNDVI <- GNDVI
-  }
-  if ('IRECI'%in%Sel_Indices){
-    IRECI <- (Refl$B7-Refl$B4)/(Refl$B5/(Refl$B6))
-    # IRECI <- (Refl$B7-Refl$B4)*(Refl$B6/(Refl$B5))
-    SpectralIndices$IRECI <- IRECI
-  }
-  if ('LAI_SAVI'%in%Sel_Indices){
-    LAI_SAVI <- -log(0.371 + 1.5 * (Refl$B8 - Refl$B4) / (Refl$B8+ Refl$B4+ 0.5)) / 2.4
-    SpectralIndices$LAI_SAVI <- LAI_SAVI
-  }
-  if  ('MCARI'%in%Sel_Indices){
-    MCARI <- (1-0.2*(Refl$B5-Refl$B3)/(Refl$B5-Refl$B4))
-    SpectralIndices$MCARI <- MCARI
-  }
-  if ('mNDVI705'%in%Sel_Indices){
-    mNDVI705 <- (Refl$B6-Refl$B5)/(Refl$B6+Refl$B5-2*Refl$B2)
-    SpectralIndices$mNDVI705 <- mNDVI705
-  }
-  if ('MSAVI2'%in%Sel_Indices){
-    MSAVI2 <- ((Refl$B8+1)-0.5*sqrt(((2*Refl$B8)-1)**2+8*Refl$B4))
-    SpectralIndices$MSAVI2 <- MSAVI2
-  }
-  if ('MSI'%in%Sel_Indices){
-    MSI <- Refl$B11/Refl$B8
-    SpectralIndices$MSI <- MSI
-  }
-  if ('mSR705'%in%Sel_Indices){
-    mSR705 <- (Refl$B6-Refl$B2)/(Refl$B5-Refl$B2)
-    SpectralIndices$mSR705 <- mSR705
-  }
-  if ('MTCI'%in%Sel_Indices){
-    MTCI <- (Refl$B6-Refl$B5)/(Refl$B5+Refl$B4)
-    SpectralIndices$MTCI <- MTCI
-  }
-  if ('nBR_RAW'%in%Sel_Indices){
-    nBR_RAW <- (Refl$B8-Refl$B12)/(Refl$B8+Refl$B12)
-    SpectralIndices$nBR_RAW <- nBR_RAW
-  }
-  if ('NDI_45'%in%Sel_Indices){
-    NDI_45 <- (Refl$B5-Refl$B4)/(Refl$B5+Refl$B4)
-    SpectralIndices$NDI_45 <- NDI_45
-  }
-  if ('NDII'%in%Sel_Indices){
-    NDII <- (Refl$B8-Refl$B11)/(Refl$B8+Refl$B11)
-    SpectralIndices$NDII <- NDII
-  }
-  if ("NDSI" %in% Sel_Indices) {
-    ndsi <- (Refl$B3 - Refl$B11) / (Refl$B3 + Refl$B11)
-    SpectralIndices$NDSI <- ndsi
-  }
-  if ('NDVI'%in%Sel_Indices){
-    NDVI <- (Refl$B8-Refl$B4)/(Refl$B8+Refl$B4)
-    SpectralIndices$NDVI <- NDVI
-  }
-  if ('NDVI_G'%in%Sel_Indices){
-    NDVI_G <- Refl$B3*(Refl$B8-Refl$B4)/(Refl$B8+Refl$B4)
-    SpectralIndices$NDVI_G <- NDVI_G
-  }
-  if ('NDVI705'%in%Sel_Indices){
-    NDVI705 <- (Refl$B6-Refl$B5)/(Refl$B6+Refl$B5)
-    SpectralIndices$NDVI705 <- NDVI705
-  }
-  if ('NDWI1'%in%Sel_Indices){
-    NDWI1 <- (Refl$B8A-Refl$B11)/(Refl$B8A+Refl$B11)
-    SpectralIndices$NDWI1 <- NDWI1
-  }
-  if ('NDWI2'%in%Sel_Indices){
-    NDWI2 <- (Refl$B8A-Refl$B12)/(Refl$B8A+Refl$B12)
-    SpectralIndices$NDWI2 <- NDWI2
-  }
-  if ('PSRI'%in%Sel_Indices){
-    PSRI <- (Refl$B4-Refl$B2)/(Refl$B5)
-    SpectralIndices$PSRI <- PSRI
-  }
-  if ('PSRI_NIR'%in%Sel_Indices){
-    PSRI_NIR <- (Refl$B4-Refl$B2)/(Refl$B8)
-    SpectralIndices$PSRI_NIR <- PSRI_NIR
-  }
-  if ('RE_NDVI'%in%Sel_Indices){
-    RE_NDVI <- (Refl$B8-Refl$B6)/(Refl$B8+Refl$B6)
-    SpectralIndices$RE_NDVI <- RE_NDVI
-  }
-  if ('RE_NDWI'%in%Sel_Indices){
-    RE_NDWI <- (Refl$B4-Refl$B6)/(Refl$B4+Refl$B6)
-    SpectralIndices$RE_NDWI <- RE_NDWI
-  }
-  if ('S2REP'%in%Sel_Indices){
-    S2REP <- 705+35*(((0.5*(Refl$B7+Refl$B4))-Refl$B6)/(Refl$B7-Refl$B6))
-    # S2REP <- 705+35*(0.5*(Refl$B8+Refl$B5)-Refl$B6)/(Refl$B7-Refl$B6)
-    SpectralIndices$S2REP <- S2REP
-  }
-  if ('SAVI'%in%Sel_Indices){
-    SAVI <- 1.5*(Refl$B8-Refl$B4)/(Refl$B8+Refl$B4+0.5)
-    SpectralIndices$SAVI <- SAVI
-  }
-  if ('SIPI'%in%Sel_Indices){
-    SIPI <- (Refl$B8-Refl$B2)/(Refl$B8-Refl$B4)
-    SpectralIndices$SIPI <- SIPI
-  }
-  if ('SR'%in%Sel_Indices){
-    SR <- Refl$B8/Refl$B4
-    SpectralIndices$SR <- SR
-  }
-  if ('CR_SWIR'%in%Sel_Indices){
-    CR_SWIR <- Refl$B11/(Refl$B8A+(S2Bands$B11-S2Bands$B8A)*(Refl$B12-Refl$B8A)/(S2Bands$B12-S2Bands$B8A))
-    SpectralIndices$CR_SWIR <- CR_SWIR
-  }
-  if ('CR_RE'%in%Sel_Indices){
-    CR_RE <- Refl$B5/(Refl$B4+(S2Bands$B5-S2Bands$B4)*(Refl$B6-Refl$B4)/(S2Bands$B6-S2Bands$B4))
-    SpectralIndices$CR_RE <- CR_RE
-  }
+
+  # if ('ARI1'%in%Sel_Indices){
+  #   ARI1 <- (1/Refl$B3)-(1/Refl$B5)
+  #   SpectralIndices$ARI1 <- ARI1
+  # }
+  # if ('ARI2'%in%Sel_Indices){
+  #   ARI2 <- (Refl$B8/Refl$B2)-(Refl$B8/Refl$B3)
+  #   SpectralIndices$ARI2 <- ARI2
+  # }
+  # if ('ARVI'%in%Sel_Indices){
+  #   ARVI <- (Refl$B8-(2*Refl$B4-Refl$B2))/(Refl$B8+(2*Refl$B4-Refl$B2))
+  #   SpectralIndices$ARVI <- ARVI
+  # }
+  # if ('BAI'%in%Sel_Indices){
+  #   BAI <- (1/((0.1-Refl$B4)**2+(0.06-Refl$B8)**2))
+  #   SpectralIndices$BAI <- BAI
+  # }
+  # if ('BAIS2'%in%Sel_Indices){
+  #   BAIS2 <-  (1-((Refl$B6 * Refl$B7 * Refl$B8A)/Refl$B4)**0.5)*((Refl$B12 - Refl$B8A)/((Refl$B12 + Refl$B8A)**0.5)+1)
+  #   SpectralIndices$BAIS2 <- BAIS2
+  # }
+  # if ("CCCI" %in% Sel_Indices) {
+  #   CCCI <- ((Refl$B8 - Refl$B5) / (Refl$B8 + Refl$B5)) / ((Refl$B8 - Refl$B4) / (Refl$B8 + Refl$B4))
+  #   SpectralIndices$CCCI <- CCCI
+  # }
+  # if ('CHL_RE'%in%Sel_Indices){
+  #   CHL_RE <- Refl$B5/Refl$B8
+  #   SpectralIndices$CHL_RE <- CHL_RE
+  # }
+  # if ('CRI1'%in%Sel_Indices){
+  #   CRI1 <- (1/Refl$B2)-(1/Refl$B3)
+  #   SpectralIndices$CRI1 <- CRI1
+  # }
+  # if ('CRI2'%in%Sel_Indices){
+  #   CRI2 <- (1/Refl$B2)-(1/Refl$B5)
+  #   SpectralIndices$CRI2 <- CRI2
+  # }
+  # if ('EVI'%in%Sel_Indices){
+  #   EVI <- 2.5*(Refl$B8-Refl$B4)/((Refl$B8+6*Refl$B4-7.5*Refl$B2+1))
+  #   SpectralIndices$EVI <- EVI
+  # }
+  # if ('EVI2'%in%Sel_Indices){
+  #   EVI2 <- 2.5*(Refl$B8-Refl$B4)/(Refl$B8+2.4*Refl$B4+1)
+  #   SpectralIndices$EVI2 <- EVI2
+  # }
+  # if ('GRVI1'%in%Sel_Indices){
+  #   GRVI1 <- (Refl$B4-Refl$B3)/(Refl$B4+Refl$B3)
+  #   SpectralIndices$GRVI1 <- GRVI1
+  # }
+  # if ('GNDVI'%in%Sel_Indices){
+  #   GNDVI <- (Refl$B8-Refl$B3)/(Refl$B8+Refl$B3)
+  #   SpectralIndices$GNDVI <- GNDVI
+  # }
+  # if ('IRECI'%in%Sel_Indices){
+  #   IRECI <- (Refl$B7-Refl$B4)/(Refl$B5/(Refl$B6))
+  #   # IRECI <- (Refl$B7-Refl$B4)*(Refl$B6/(Refl$B5))
+  #   SpectralIndices$IRECI <- IRECI
+  # }
+  # if ('LAI_SAVI'%in%Sel_Indices){
+  #   LAI_SAVI <- -log(0.371 + 1.5 * (Refl$B8 - Refl$B4) / (Refl$B8+ Refl$B4+ 0.5)) / 2.4
+  #   SpectralIndices$LAI_SAVI <- LAI_SAVI
+  # }
+  # if  ('MCARI'%in%Sel_Indices){
+  #   MCARI <- (1-0.2*(Refl$B5-Refl$B3)/(Refl$B5-Refl$B4))
+  #   SpectralIndices$MCARI <- MCARI
+  # }
+  # if ('mNDVI705'%in%Sel_Indices){
+  #   mNDVI705 <- (Refl$B6-Refl$B5)/(Refl$B6+Refl$B5-2*Refl$B2)
+  #   SpectralIndices$mNDVI705 <- mNDVI705
+  # }
+  # if ('MSAVI2'%in%Sel_Indices){
+  #   MSAVI2 <- ((Refl$B8+1)-0.5*sqrt(((2*Refl$B8)-1)**2+8*Refl$B4))
+  #   SpectralIndices$MSAVI2 <- MSAVI2
+  # }
+  # if ('MSI'%in%Sel_Indices){
+  #   MSI <- Refl$B11/Refl$B8
+  #   SpectralIndices$MSI <- MSI
+  # }
+  # if ('mSR705'%in%Sel_Indices){
+  #   mSR705 <- (Refl$B6-Refl$B2)/(Refl$B5-Refl$B2)
+  #   SpectralIndices$mSR705 <- mSR705
+  # }
+  # if ('MTCI'%in%Sel_Indices){
+  #   MTCI <- (Refl$B6-Refl$B5)/(Refl$B5+Refl$B4)
+  #   SpectralIndices$MTCI <- MTCI
+  # }
+  # if ('nBR_RAW'%in%Sel_Indices){
+  #   nBR_RAW <- (Refl$B8-Refl$B12)/(Refl$B8+Refl$B12)
+  #   SpectralIndices$nBR_RAW <- nBR_RAW
+  # }
+  # if ('NDI_45'%in%Sel_Indices){
+  #   NDI_45 <- (Refl$B5-Refl$B4)/(Refl$B5+Refl$B4)
+  #   SpectralIndices$NDI_45 <- NDI_45
+  # }
+  # if ('NDII'%in%Sel_Indices){
+  #   NDII <- (Refl$B8-Refl$B11)/(Refl$B8+Refl$B11)
+  #   SpectralIndices$NDII <- NDII
+  # }
+  # if ("NDSI" %in% Sel_Indices) {
+  #   ndsi <- (Refl$B3 - Refl$B11) / (Refl$B3 + Refl$B11)
+  #   SpectralIndices$NDSI <- ndsi
+  # }
+  # if ('NDVI'%in%Sel_Indices){
+  #   NDVI <- (Refl$B8-Refl$B4)/(Refl$B8+Refl$B4)
+  #   SpectralIndices$NDVI <- NDVI
+  # }
+  # if ('NDVI_G'%in%Sel_Indices){
+  #   NDVI_G <- Refl$B3*(Refl$B8-Refl$B4)/(Refl$B8+Refl$B4)
+  #   SpectralIndices$NDVI_G <- NDVI_G
+  # }
+  # if ('NDVI705'%in%Sel_Indices){
+  #   NDVI705 <- (Refl$B6-Refl$B5)/(Refl$B6+Refl$B5)
+  #   SpectralIndices$NDVI705 <- NDVI705
+  # }
+  # if ('NDWI1'%in%Sel_Indices){
+  #   NDWI1 <- (Refl$B8A-Refl$B11)/(Refl$B8A+Refl$B11)
+  #   SpectralIndices$NDWI1 <- NDWI1
+  # }
+  # if ('NDWI2'%in%Sel_Indices){
+  #   NDWI2 <- (Refl$B8A-Refl$B12)/(Refl$B8A+Refl$B12)
+  #   SpectralIndices$NDWI2 <- NDWI2
+  # }
+  # if ('PSRI'%in%Sel_Indices){
+  #   PSRI <- (Refl$B4-Refl$B2)/(Refl$B5)
+  #   SpectralIndices$PSRI <- PSRI
+  # }
+  # if ('PSRI_NIR'%in%Sel_Indices){
+  #   PSRI_NIR <- (Refl$B4-Refl$B2)/(Refl$B8)
+  #   SpectralIndices$PSRI_NIR <- PSRI_NIR
+  # }
+  # if ('RE_NDVI'%in%Sel_Indices){
+  #   RE_NDVI <- (Refl$B8-Refl$B6)/(Refl$B8+Refl$B6)
+  #   SpectralIndices$RE_NDVI <- RE_NDVI
+  # }
+  # if ('RE_NDWI'%in%Sel_Indices){
+  #   RE_NDWI <- (Refl$B4-Refl$B6)/(Refl$B4+Refl$B6)
+  #   SpectralIndices$RE_NDWI <- RE_NDWI
+  # }
+  # if ('S2REP'%in%Sel_Indices){
+  #   S2REP <- 705+35*(((0.5*(Refl$B7+Refl$B4))-Refl$B6)/(Refl$B7-Refl$B6))
+  #   # S2REP <- 705+35*(0.5*(Refl$B8+Refl$B5)-Refl$B6)/(Refl$B7-Refl$B6)
+  #   SpectralIndices$S2REP <- S2REP
+  # }
+  # if ('SAVI'%in%Sel_Indices){
+  #   SAVI <- 1.5*(Refl$B8-Refl$B4)/(Refl$B8+Refl$B4+0.5)
+  #   SpectralIndices$SAVI <- SAVI
+  # }
+  # if ('SIPI'%in%Sel_Indices){
+  #   SIPI <- (Refl$B8-Refl$B2)/(Refl$B8-Refl$B4)
+  #   SpectralIndices$SIPI <- SIPI
+  # }
+  # if ('SR'%in%Sel_Indices){
+  #   SR <- Refl$B8/Refl$B4
+  #   SpectralIndices$SR <- SR
+  # }
+  # if ('CR_SWIR'%in%Sel_Indices){
+  #   CR_SWIR <- Refl$B11/(Refl$B8A+(S2Bands$B11-S2Bands$B8A)*(Refl$B12-Refl$B8A)/(S2Bands$B12-S2Bands$B8A))
+  #   SpectralIndices$CR_SWIR <- CR_SWIR
+  # }
+  # if ('CR_RE'%in%Sel_Indices){
+  #   CR_RE <- Refl$B5/(Refl$B4+(S2Bands$B5-S2Bands$B4)*(Refl$B6-Refl$B4)/(S2Bands$B6-S2Bands$B4))
+  #   SpectralIndices$CR_RE <- CR_RE
+  # }
   res <- list('SpectralIndices'=SpectralIndices,'listIndices'=listIndices)
   return(res)
 }
@@ -751,7 +806,8 @@ IQR_outliers <- function(DistVal,weightIRQ = 1.5){
 #' @importFrom gtools combinations permutations
 #' @importFrom progress progress_bar
 #' @importFrom Rfast correls
-#' @importFrom pbapply pblapply
+#' @importFrom snow splitRows
+#' @importFrom future.apply future_lapply
 #' @export
 
 optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutations = FALSE, nbCPU = 1){
@@ -826,7 +882,6 @@ optimal_SI <- function(ReflMat, Spectral_Bands, BPvars, ExpressIndex,Permutation
 #' @importFrom progressr progressor with_progress handlers
 #' @importFrom Rfast correls
 #' @importFrom pbapply pblapply
-#' @importFrom snow splitRows
 #' @importFrom future plan multiprocess multisession sequential
 #' @importFrom future.apply future_lapply
 #' @export
