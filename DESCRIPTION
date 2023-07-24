@@ -1,6 +1,6 @@
 Package: spinR
 Title: Spectral Indices calculator with R
-Version: 0.6
+Version: 0.8
 Authors@R: 
     person(given = "Jean-Baptiste", 
     					    family = "Feret", 
@@ -25,4 +25,3 @@ Imports:
     raster,
     Rfast,
     snow,
-    stringr

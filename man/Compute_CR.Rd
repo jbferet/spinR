@@ -5,7 +5,7 @@
 \title{This function computes continuum removal value for a spectral band of interest,
 based on lower and upper wavelengths corresponding to boundaries of the continuum}
 \usage{
-compute_CR(WLmin, WLmax, WLtarget, boundaries, target)
+compute_CR(WLmin, WLmax, WLtarget, boundaries, target, p = NULL)
 }
 \arguments{
 \item{WLmin}{numeric. wavelength of the spectral band corresponding to minimum boundary}
@@ -17,6 +17,8 @@ compute_CR(WLmin, WLmax, WLtarget, boundaries, target)
 \item{boundaries}{list. raster objects corresponding to minimum and maximum wavelengths}
 
 \item{target}{list. raster object corresponding target wavelength}
+
+\item{p}{list. in case progress bar with parallel computing}
 }
 \value{
 CR list. raster object corresponding to continuum removed value
