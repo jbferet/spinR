@@ -6,8 +6,6 @@
 where columns are named after S2 bands: B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12}
 \usage{
 GRVI1(Refl, S2Bands = NULL)
-
-GRVI1(Refl, S2Bands = NULL)
 }
 \arguments{
 \item{Refl}{data.table. each column is a spectral band (B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12)}
@@ -16,13 +14,8 @@ GRVI1(Refl, S2Bands = NULL)
 }
 \value{
 numeric. GRVI1 spectral index
-
-numeric. GRVI1 spectral index
 }
 \description{
-this function computes GRVI1 spectral index based on a reflectance data.table
-where columns are named after S2 bands: B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12
-
 this function computes GRVI1 spectral index based on a reflectance data.table
 where columns are named after S2 bands: B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12
 }

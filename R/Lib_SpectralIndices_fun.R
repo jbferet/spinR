@@ -167,20 +167,6 @@ GRVI1 <- function(Refl, S2Bands=NULL){
   return(SI)
 }
 
-#' this function computes GRVI1 spectral index based on a reflectance data.table
-#' where columns are named after S2 bands: B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12
-#'
-#' @param Refl data.table. each column is a spectral band (B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12)
-#' @param S2Bands data.table. wavelength
-#'
-#' @return numeric. GRVI1 spectral index
-#' @export
-#'
-GRVI1 <- function(Refl, S2Bands=NULL){
-  SI <- (Refl$B4-Refl$B3)/(Refl$B4+Refl$B3)
-  return(SI)
-}
-
 #' this function computes GNDVI spectral index based on a reflectance data.table
 #' where columns are named after S2 bands: B2, B3, B4, B5, B6, B7, B8, B8A, B11, B12
 #'

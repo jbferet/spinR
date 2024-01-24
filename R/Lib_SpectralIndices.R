@@ -364,6 +364,82 @@ compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU
   return(res)
 }
 
+#' This function computes spectral indices from raster data
+#'
+#' @param input_raster_path character. raster path / list of raster paths
+#' @param input_rast_wl numeric. vector containing central wavelength for each spectral band in the image
+#' @param output_dir character. main directory where SI will be written
+#' @param output_rasters character. list of paths corresponding to each path
+#' @param SI_list character. spectral indices to be computed (cf package spinR)
+#' @param input_mask_path character. path for mask
+#' @param ReflFactor numeric. multiplying factor used to write reflectance in image (==10000 for S2)
+#' @param nbCPU numeric. number of CPU for parallel processing
+#' @param filetype character. driver
+#' @param overwrite boolean. set TRUE to overwrite existing files
+#'
+#' @return output_rasters list. list of path for SI rasters
+#' @export
+
+spectralindices_from_raster <- function(input_raster_path, input_rast_wl,
+                                        output_dir, output_rasters = NULL,
+                                        SI_list, input_mask_path =  NULL,
+                                        ReflFactor = 10000, nbCPU = 1,
+                                        filetype = 'COG', overwrite = TRUE){
+
+  if (length(SI_list)==1){
+    if (SI_list== 'ALL') SI_list <- list('ARI1', 'ARI2', 'ARVI', 'BAI', 'BAIS2',
+                                         'CCCI', 'CHL_RE', 'CRI1', 'CRI2', 'EVI',
+                                         'EVI2', 'GRVI1', 'GNDVI', 'IRECI',
+                                         'LAI_SAVI', 'MCARI', 'mNDVI705',
+                                         'MSAVI2', 'MSI', 'mSR705', 'MTCI',
+                                         'nBR_RAW', 'NDI_45', 'NDII', 'NDSI',
+                                         'NDVI', 'NDVI_G', 'NDVI705', 'NDWI1',
+                                         'NDWI2', 'PSRI', 'PSRI_NIR', 'RE_NDVI',
+                                         'RE_NDWI', 'S2REP', 'SAVI', 'SIPI', 'SR',
+                                         'CR_SWIR', 'CR_RE')
+  }
+  input_args <- list('SI' = SI_list,
+                     'ReflFactor' = ReflFactor,
+                     'nbCPU' = nbCPU,
+                     'SensorBands' = input_rast_wl)
+  input_rasters <- list('img' = input_raster_path,
+                        'mask' = input_mask_path)
+  # if name for individual output rasters was not provided
+  if (is.null(output_rasters)) {
+    output_rasters <- file.path(output_dir, SI_list)
+    # add extension .tif if tif or COG
+    if (filetype%in%c('GTiff', 'COG')) output_rasters <- paste0(output_rasters,
+                                                                '.tif')
+    output_rasters <- as.list(output_rasters)
+  }
+  # name rasters based on name of spectral indices
+  names(output_rasters) <- SI_list
+  # check if already exists and processed
+  # if no overwrite, still checks if some of the files are missing
+  if (overwrite==FALSE){
+    fileExists <- lapply(output_rasters, file.exists)
+    for (SI in names(output_rasters)){
+      if (fileExists[[SI]]==TRUE) output_rasters[[SI]] <- NULL
+    }
+  }
+  if (length(output_rasters)>0){
+    output_lyrs <- 1
+    unit_nrows <- FALSE # if need to process spatial units
+    funct <- bigRaster::wrapperBig_SI
+    bandNames <- as.list(SI_list)
+    names(bandNames) <- SI_list
+    output_rasters <- bigRaster::apply_bigRaster(funct = funct,
+                                                 input_rasters = input_rasters,
+                                                 input_args = input_args,
+                                                 output_rasters = output_rasters,
+                                                 output_lyrs = output_lyrs,
+                                                 filetype = filetype,
+                                                 bandNames = bandNames)
+  }
+  return(output_rasters)
+}
+
+
 #' This function extracts boundaries to be used to compute continuum from reflectance data
 #'
 #' @param Refl RasterBrick, RasterStack or list. Raster bands in the order of SensorBands.
