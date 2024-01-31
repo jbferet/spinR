@@ -1,3 +1,7 @@
+# spinR v0.10.0
+## fix
+- fix spectralindices_from_raster when no mask is provided
+
 # spinR v0.9.0
 ## addition
 - added function spectralindices_from_raster working with bigRaster

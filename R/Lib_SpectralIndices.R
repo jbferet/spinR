@@ -404,6 +404,7 @@ spectralindices_from_raster <- function(input_raster_path, input_rast_wl,
                      'SensorBands' = input_rast_wl)
   input_rasters <- list('img' = input_raster_path,
                         'mask' = input_mask_path)
+  if (is.null(input_mask_path)) input_rasters$mask <- NULL
   # if name for individual output rasters was not provided
   if (is.null(output_rasters)) {
     output_rasters <- file.path(output_dir, SI_list)
@@ -723,7 +724,7 @@ sub_SI_Corr <- function(Bands, Refl, SensorBands, ExpressIndex, BPvars, ReflFact
                     ReflFactor = ReflFactor, NameIndex = 'SI')
 
   SIopt <- do.call(rbind,SIopt)
-  if (!is.null(p)){p()}
+  if (!is.null(p)) p()
   return(SIopt)
 }
 
