@@ -1,3 +1,11 @@
+# spinR v0.11.0
+## fix
+- moved bigRaster as suggestion
+- moved wrapperBig_SI_S2perband from bigRaster to spinR
+
+## addition
+- added function listIndices_spinR describing available spectral indices
+
 # spinR v0.10.0
 ## fix
 - fix spectralindices_from_raster when no mask is provided

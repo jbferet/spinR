@@ -1,6 +1,6 @@
 Package: spinR
 Title: Spectral Indices calculator with R
-Version: 0.10.0
+Version: 0.11.0
 Authors@R: 
     person(given = "Jean-Baptiste", 
     					    family = "Feret", 
@@ -12,18 +12,21 @@ License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.0
+Suggests: 
+  bigRaster,
+  rmarkdown,
+  testthat (>= 3.0.0)
 Imports: 
-	bigRaster, 
-    cli,
-    data.table,
-    future,
-    future.apply,
-    gtools,
-    methods,
-    pbapply,
-    progress,
-    progressr,
-    raster,
-    Rfast,
-    snow,
+	cli,
+	data.table,
+	future,
+	future.apply,
+	gtools,
+	methods,
+	pbapply,
+	progress,
+	progressr,
+	raster,
+	Rfast,
+	snow,
 Remotes: gitlab::jbferet/bigRaster
