@@ -321,9 +321,9 @@ compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU
   Sen2S2 <- get_closest_bands(SensorBands,S2Bands)
   # set zero vaues to >0 in order to avoid problems
   Refl <- data.table::data.table(Refl)
-  names(Refl) <- names(Sen2S2)
   Refl[Refl==0] <- 0.0001
-  if (dim(Refl)[1]==length(SensorBands)) Refl <- t(Refl)
+  if (dim(Refl)[1]==length(SensorBands) & !dim(Refl)[1]==dim(Refl)[2]) Refl <- t(Refl)
+  names(Refl) <- names(Sen2S2)
   listIndices <- names(listIndices_spinR())
   if (Sel_Indices[1]=='ALL') Sel_Indices <- as.list(listIndices)
   if (nbCPU>1){
@@ -365,7 +365,7 @@ spectralindices_from_raster <- function(input_raster_path, input_rast_wl,
                                         output_dir, output_rasters = NULL,
                                         SI_list, input_mask_path =  NULL,
                                         ReflFactor = 10000, nbCPU = 1,
-                                        filetype = 'COG', overwrite = TRUE){
+                                        filetype = 'GTiff', overwrite = TRUE){
 
   if (length(SI_list)==1){
     if (SI_list== 'ALL') SI_list <- as.list(names(listIndices_spinR()))

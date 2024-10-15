@@ -1,3 +1,10 @@
+# spinR v0.11.1
+## change
+- use GTiff as default raster driver instead of COG
+
+## fix
+- fix Refl matrix transposition in compute_S2SI_from_Sensor when nb pixels = nb bands
+
 # spinR v0.11.0
 ## fix
 - moved bigRaster as suggestion

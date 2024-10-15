@@ -13,7 +13,7 @@ spectralindices_from_raster(
   input_mask_path = NULL,
   ReflFactor = 10000,
   nbCPU = 1,
-  filetype = "COG",
+  filetype = "GTiff",
   overwrite = TRUE
 )
 }

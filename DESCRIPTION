@@ -1,6 +1,6 @@
 Package: spinR
 Title: Spectral Indices calculator with R
-Version: 0.11.0
+Version: 0.11.1
 Authors@R: 
     person(given = "Jean-Baptiste", 
     					    family = "Feret", 
@@ -11,7 +11,7 @@ Description: The package spinR computes spectral indices from raster data or ref
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.0
+RoxygenNote: 7.3.2
 Suggests: 
   bigRaster,
   rmarkdown,
