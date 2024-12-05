@@ -14,7 +14,9 @@ spectralindices_from_raster(
   ReflFactor = 10000,
   nbCPU = 1,
   filetype = "GTiff",
-  overwrite = TRUE
+  overwrite = TRUE,
+  SIFactor = 1,
+  datatype = "FLT4S"
 )
 }
 \arguments{
@@ -37,6 +39,10 @@ spectralindices_from_raster(
 \item{filetype}{character. driver}
 
 \item{overwrite}{boolean. set TRUE to overwrite existing files}
+
+\item{SIFactor}{numeric. multiplying factor to apply to spectral index}
+
+\item{datatype}{character. data type to save spectral index with terra. Default = 'FLT4S'}
 }
 \value{
 output_rasters list. list of path for SI rasters

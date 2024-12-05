@@ -1,3 +1,7 @@
+# spinR v0.11.2
+## change
+- possibility to define SIFactor and datatype when calling spectralindices_from_raster in order to save space
+
 # spinR v0.11.1
 ## change
 - use GTiff as default raster driver instead of COG

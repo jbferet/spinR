@@ -357,6 +357,8 @@ compute_S2SI_from_Sensor <- function(Refl, SensorBands, Sel_Indices='ALL', nbCPU
 #' @param nbCPU numeric. number of CPU for parallel processing
 #' @param filetype character. driver
 #' @param overwrite boolean. set TRUE to overwrite existing files
+#' @param SIFactor numeric. multiplying factor to apply to spectral index
+#' @param datatype character. data type to save spectral index with terra. Default = 'FLT4S'
 #'
 #' @return output_rasters list. list of path for SI rasters
 #' @export
@@ -365,13 +367,16 @@ spectralindices_from_raster <- function(input_raster_path, input_rast_wl,
                                         output_dir, output_rasters = NULL,
                                         SI_list, input_mask_path =  NULL,
                                         ReflFactor = 10000, nbCPU = 1,
-                                        filetype = 'GTiff', overwrite = TRUE){
+                                        filetype = 'GTiff', overwrite = TRUE,
+                                        SIFactor = 1, datatype = 'FLT4S'){
 
   if (length(SI_list)==1){
     if (SI_list== 'ALL') SI_list <- as.list(names(listIndices_spinR()))
   }
   input_args <- list('SI' = SI_list,
                      'ReflFactor' = ReflFactor,
+                     'SIFactor' = SIFactor,
+                     'datatype' = datatype,
                      'nbCPU' = nbCPU,
                      'SensorBands' = input_rast_wl)
   input_rasters <- list('img' = input_raster_path,
